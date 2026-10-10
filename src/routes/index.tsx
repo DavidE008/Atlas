@@ -57,10 +57,10 @@ function Dashboard() {
   const avgAqi = withData.length
     ? Math.round(withData.reduce((s, p) => s + (p.aqi ?? 0), 0) / withData.length)
     : null;
-  const worst = withData.reduce(
-    (max, p) => ((p.aqi ?? 0) > (max.aqi ?? 0) ? p : max),
-    withData[0] ?? null,
-  );
+  const worst =
+    withData.length > 0
+      ? withData.reduce((max, p) => ((p.aqi ?? 0) > (max.aqi ?? 0) ? p : max), withData[0])
+      : null;
   const selected = grid.points.find((p) => p.id === selectedId) ?? worst;
   const selectedBand = aqiBand(selected?.aqi);
   const avgBand = aqiBand(avgAqi);
