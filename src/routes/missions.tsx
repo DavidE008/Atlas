@@ -16,7 +16,7 @@ import {
 type Mission = {
   id: string; created_by: string; mission_key: string; sponsor_wallet: string;
   reviewer_wallet: string; program_address: string; mission_address: string | null; terms_hash: string | null;
-  title: string; description: string; neighborhood: string; latitude: number; longitude: number;
+  title: string; description: string; category: string; neighborhood: string; latitude: number; longitude: number;
   reward_lamports: number; submit_by: string; review_by: string; created_at: string;
   settlement_status: string | null; settlement_tx_signature: string | null;
   chainStatus?: string | null; submission?: { participant_wallet: string; note: string; evidence_hash: string; photo_path: string | null; tx_signature: string } | null;
@@ -69,7 +69,7 @@ function MissionsPage() {
   const active = missions.filter((m) => ["Funded", "Claimed", "Submitted"].includes(m.chainStatus ?? "")).length;
   const paid = missions.filter((m) => m.chainStatus === "Paid").length;
   const connectWallet = async () => {
-    const { publicKey } = await (await import("@/lib/atlas-missions")).connectMissionWallet();
+    const publicKey = await (await import("@/lib/atlas-missions")).connectMissionWallet();
     setWallet(publicKey); return publicKey;
   };
 
@@ -247,7 +247,7 @@ function CreateMission({ userId, onClose, onCreated }: { userId: string | null; 
         review_by: reviewBy.toISOString(), terms_hash: termsHash,
       }).select("id").single();
       if (error || !draft) throw error ?? new Error("Mission draft could not be saved");
-      const result = await createFundedMission({ reviewerWallet: reviewer, rewardSol: reward, submitBy: Math.floor(submitBy.getTime()/1000), reviewBy: Math.floor(reviewBy.getTime()/1000), terms });
+      const result = await createFundedMission({ missionId, reviewerWallet: reviewer, rewardSol: reward, submitBy: Math.floor(submitBy.getTime()/1000), reviewBy: Math.floor(reviewBy.getTime()/1000), terms });
       const { error: publishError } = await supabase.from("missions").update({ mission_address: result.missionAddress, terms_hash: result.termsHash }).eq("id", draft.id);
       if (publishError) throw new Error("Mission was funded on-chain, but its catalog entry needs repair. Transaction: " + result.signature);
       toast.success("Mission funded and published"); await onCreated();
@@ -268,5 +268,7 @@ function CreateMission({ userId, onClose, onCreated }: { userId: string | null; 
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-xs font-medium text-muted-foreground">{label}<div className="mt-1">{children}</div></label>; }
 async function digest(bytes: Uint8Array) {
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((v) => v.toString(16).padStart(2,"0")).join("");
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", copy.buffer))].map((v) => v.toString(16).padStart(2,"0")).join("");
 }

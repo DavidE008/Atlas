@@ -32,7 +32,8 @@ function loadSdk() {
     script.async = true;
     script.onload = () => {
       const sdk = (window as Window & { solanaWeb3?: typeof import("@solana/web3.js") }).solanaWeb3;
-      sdk ? resolve(sdk) : reject(new Error("Solana wallet tools did not initialize."));
+      if (sdk) resolve(sdk);
+      else reject(new Error("Solana wallet tools did not initialize."));
     };
     script.onerror = () => reject(new Error("Solana wallet tools could not load."));
     document.head.appendChild(script);
@@ -57,7 +58,10 @@ function concat(...parts: Uint8Array[]) {
 function intBytes(value: bigint, width: 8 | 16, signed = false) {
   const buffer = new ArrayBuffer(width);
   const view = new DataView(buffer);
-  if (width === 8) signed ? view.setBigInt64(0, value, true) : view.setBigUint64(0, value, true);
+  if (width === 8) {
+    if (signed) view.setBigInt64(0, value, true);
+    else view.setBigUint64(0, value, true);
+  }
   else {
     if (value < 0n || value >= 1n << 128n) throw new Error("Invalid mission identifier.");
     let remaining = value;
@@ -69,12 +73,8 @@ function hexBytes(hex: string) {
   if (!/^[0-9a-f]{32}$/i.test(hex)) throw new Error("Invalid mission identifier.");
   return new Uint8Array(hex.match(/.{2}/g)!.map((byte) => Number.parseInt(byte, 16)));
 }
-function randomMissionId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return { bytes, hex: [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("") };
-}
 function solToLamports(value: string) {
-  const [whole, fraction = ""] = value.trim().split(".");
+  const [whole = "", fraction = ""] = value.trim().split(".");
   if (!/^\d+$/.test(whole) || !/^\d{0,9}$/.test(fraction)) throw new Error("Enter a SOL reward with up to nine decimal places.");
   const lamports = BigInt(whole) * 1_000_000_000n + BigInt((fraction + "000000000").slice(0, 9));
   if (lamports <= 0n) throw new Error("The reward must be greater than zero.");
@@ -82,7 +82,9 @@ function solToLamports(value: string) {
 }
 async function sha256(value: Uint8Array | string) {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", copy.buffer));
 }
 async function sendInstruction(ixData: Uint8Array, keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]) {
   const { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } = await loadSdk();
@@ -92,7 +94,7 @@ async function sendInstruction(ixData: Uint8Array, keys: { pubkey: PublicKey; is
   const instruction = new TransactionInstruction({
     programId,
     keys: keys.map((key) => ({ ...key })),
-    data: Buffer.from(ixData),
+    data: Buffer.from(ixData) as unknown as NonNullable<ConstructorParameters<typeof TransactionInstruction>[0]["data"]>,
   });
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const latest = await connection.getLatestBlockhash("confirmed");
@@ -111,6 +113,7 @@ async function missionAddress(PublicKeyCtor: typeof import("@solana/web3.js").Pu
 }
 
 export async function createFundedMission(input: {
+  missionId: string;
   reviewerWallet: string;
   rewardSol: string;
   submitBy: number;
@@ -121,7 +124,7 @@ export async function createFundedMission(input: {
   const provider = getPhantom();
   const { publicKey } = await provider.connect();
   const reviewer = new PublicKey(input.reviewerWallet);
-  const mission = randomMissionId();
+  const mission = { hex: input.missionId.toLowerCase(), bytes: hexBytes(input.missionId) };
   const reward = solToLamports(input.rewardSol);
   const termsHash = await sha256(input.terms);
   const { pda } = await missionAddress(PublicKey, publicKey.toBase58(), mission.hex);
@@ -185,6 +188,6 @@ export async function readMissionStatus(address: string) {
   const account = await connection.getAccountInfo(new PublicKey(address), "confirmed");
   if (!account) return null;
   if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 220) throw new Error("Mission account is not owned by the Atlas program.");
-  const status = account.data[218];
+  const status = account.data[218]!;
   return (["Funded", "Claimed", "Submitted", "Paid", "Rejected"] as const)[status] ?? null;
 }
