@@ -103,9 +103,6 @@ function AboutPage() {
         </Link>
       </div>
 
-      <p className="mt-12 text-xs text-muted-foreground">
-        Built at CodeRED Orion 2026 · University of Houston
-      </p>
     </div>
   );
 }

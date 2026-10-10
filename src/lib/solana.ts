@@ -1,17 +1,29 @@
 // Light Solana integration: Phantom wallet + devnet memo attestation.
 // Browser-only module — never import from server code.
 
-import {
-  Connection,
-  PublicKey,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
+import type { PublicKey, Transaction } from "@solana/web3.js";
+import { Buffer } from "buffer/";
+import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";
-const MEMO_PROGRAM_ID = new PublicKey(
-  "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
-);
+let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
+
+function loadSolanaSdk() {
+  if (sdkPromise) return sdkPromise;
+  sdkPromise = new Promise<typeof import("@solana/web3.js")>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = solanaScriptUrl;
+    script.async = true;
+    script.onload = () => {
+      const sdk = (window as unknown as { solanaWeb3?: typeof import("@solana/web3.js") }).solanaWeb3;
+      if (sdk) resolve(sdk);
+      else reject(new Error("Solana wallet tools could not initialize."));
+    };
+    script.onerror = () => reject(new Error("Solana wallet tools could not load."));
+    document.head.appendChild(script);
+  });
+  return sdkPromise;
+}
 
 type PhantomProvider = {
   isPhantom?: boolean;
@@ -54,6 +66,8 @@ export async function attestReport(params: {
   }
   const { publicKey } = await phantom.connect();
 
+  const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
+  const memoProgramId = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
   const memo = JSON.stringify({
     app: "airwatch-houston",
     report: params.reportId,
@@ -73,8 +87,8 @@ export async function attestReport(params: {
   }).add(
     new TransactionInstruction({
       keys: [],
-      programId: MEMO_PROGRAM_ID,
-      data: Buffer.from(memo, "utf-8"),
+      programId: memoProgramId,
+      data: Buffer.from(memo, "utf-8") as unknown as import("buffer").Buffer,
     }),
   );
 

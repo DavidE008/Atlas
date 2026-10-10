@@ -1,16 +1,16 @@
-# Orion's Code Compass
+# Atlas
 
-Building for the CodeRed Orion Hackathon
+An independent Houston air-quality project featuring live neighborhood readings, a geographic map, community observations, and optional Solana devnet attestations.
 
-This project was built with [Lovable](https://lovable.dev).
+The website currently uses the AirWatch Houston name. Built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/50e92e47-ef86-493a-b8e8-3b505e559c54).
+Open your project in the [Lovable editor](https://lovable.dev) and keep building.
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
+- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 
@@ -22,3 +22,10 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Built with
+
+- TanStack Start
+- TypeScript
+- React
+- Tailwind CSS
