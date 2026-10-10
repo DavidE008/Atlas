@@ -14,72 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
-      missions: {
+      aq_grid_points: {
         Row: {
-          category: string
-          created_at: string
-          created_by: string
-          description: string
           id: string
           latitude: number
           longitude: number
-          mission_address: string | null
-          mission_key: string
-          neighborhood: string
-          program_address: string
-          reviewer_wallet: string
-          reward_lamports: number
-          settlement_status: string | null
-          settlement_tx_signature: string | null
-          sponsor_wallet: string
-          submit_by: string
-          review_by: string
-          terms_hash: string | null
-          title: string
+          name: string
         }
         Insert: {
-          category?: string
-          created_at?: string
-          created_by: string
-          description: string
           id?: string
           latitude: number
           longitude: number
-          mission_address?: string | null
-          mission_key: string
-          neighborhood: string
-          program_address: string
-          reviewer_wallet: string
-          reward_lamports: number
-          settlement_status?: string | null
-          settlement_tx_signature?: string | null
-          sponsor_wallet: string
-          submit_by: string
-          review_by: string
-          terms_hash?: string | null
-          title: string
+          name: string
         }
         Update: {
-          category?: string
-          created_at?: string
-          created_by?: string
-          description?: string
           id?: string
           latitude?: number
           longitude?: number
-          mission_address?: string | null
-          mission_key?: string
-          neighborhood?: string
-          program_address?: string
-          reviewer_wallet?: string
-          reward_lamports?: number
-          settlement_status?: string | null
-          settlement_tx_signature?: string | null
-          sponsor_wallet?: string
-          submit_by?: string
-          review_by?: string
-          terms_hash?: string | null
-          title?: string
+          name?: string
         }
         Relationships: []
       }
@@ -134,26 +86,82 @@ export type Database = {
           },
         ]
       }
-      aq_grid_points: {
+      missions: {
         Row: {
+          category: string
+          created_at: string
+          created_by: string
+          description: string
           id: string
           latitude: number
           longitude: number
-          name: string
+          mission_address: string | null
+          mission_key: string
+          neighborhood: string
+          program_address: string
+          review_by: string
+          reviewer_wallet: string
+          reward_lamports: number
+          settlement_status: string | null
+          settlement_tx_signature: string | null
+          sponsor_wallet: string
+          submit_by: string
+          terms_hash: string | null
+          title: string
         }
         Insert: {
+          category?: string
+          created_at?: string
+          created_by: string
+          description: string
           id?: string
           latitude: number
           longitude: number
-          name: string
+          mission_address?: string | null
+          mission_key: string
+          neighborhood: string
+          program_address: string
+          review_by: string
+          reviewer_wallet: string
+          reward_lamports: number
+          settlement_status?: string | null
+          settlement_tx_signature?: string | null
+          sponsor_wallet: string
+          submit_by: string
+          terms_hash?: string | null
+          title: string
         }
         Update: {
+          category?: string
+          created_at?: string
+          created_by?: string
+          description?: string
           id?: string
           latitude?: number
           longitude?: number
-          name?: string
+          mission_address?: string | null
+          mission_key?: string
+          neighborhood?: string
+          program_address?: string
+          review_by?: string
+          reviewer_wallet?: string
+          reward_lamports?: number
+          settlement_status?: string | null
+          settlement_tx_signature?: string | null
+          sponsor_wallet?: string
+          submit_by?: string
+          terms_hash?: string | null
+          title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "missions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
