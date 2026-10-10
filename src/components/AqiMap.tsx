@@ -1,5 +1,5 @@
 // Browser-only Google Map. Load via <ClientOnly> + React.lazy from routes.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GridReading } from "@/lib/airquality.functions";
 import type { ReportRow } from "@/lib/airquality.functions";
 import { aqiBand } from "@/lib/aqi";
@@ -7,6 +7,7 @@ import { aqiBand } from "@/lib/aqi";
 declare global {
   interface Window {
     __airwatchMapInit?: () => void;
+    gm_authFailure?: () => void;
     google?: any;
   }
 }
@@ -35,19 +36,36 @@ const DARK_STYLES = [
   },
 ];
 
+let mapsPromise: Promise<void> | undefined;
+
 function loadMapsApi(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.google?.maps) return resolve();
+  if (typeof window.google?.maps?.Map === "function") return Promise.resolve();
+  if (mapsPromise) return mapsPromise;
+  mapsPromise = new Promise((resolve, reject) => {
     const key = import.meta.env["VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY"];
     const channel = import.meta.env["VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_TRACKING_ID"];
     if (!key) return reject(new Error("Google Maps browser key is not configured"));
-    window.__airwatchMapInit = () => resolve();
+    const timeout = window.setTimeout(() => fail("Google Maps took too long to load. Please refresh to try again."), 15000);
+    function fail(message: string) {
+      window.clearTimeout(timeout);
+      reject(new Error(message));
+    }
+    window.gm_authFailure = () => fail("Google Maps could not authorize this website.");
+    window.__airwatchMapInit = () => {
+      window.clearTimeout(timeout);
+      if (typeof window.google?.maps?.Map !== "function") {
+        fail("Google Maps could not initialize.");
+        return;
+      }
+      resolve();
+    };
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__airwatchMapInit&channel=${channel}`;
     script.async = true;
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
+    script.onerror = () => fail("Google Maps could not load. Check your connection and refresh.");
     document.head.appendChild(script);
   });
+  return mapsPromise;
 }
 
 export default function AqiMap({
@@ -63,14 +81,14 @@ export default function AqiMap({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    let markers: any[] = [];
-
     loadMapsApi().then(() => {
       if (cancelled || !ref.current) return;
-      const map = new window.google.maps.Map(ref.current, {
+      mapRef.current = new window.google.maps.Map(ref.current, {
         center: { lat: 29.7604, lng: -95.42 },
         zoom: 10,
         styles: DARK_STYLES,
@@ -79,7 +97,22 @@ export default function AqiMap({
         zoomControl: true,
         backgroundColor: "#0e1626",
       });
-      mapRef.current = map;
+      window.gm_authFailure = () => {
+        if (!cancelled) setError("Google Maps could not authorize this website.");
+      };
+      setReady(true);
+    }).catch((reason: unknown) => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : "Google Maps is unavailable.");
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let markers: any[] = [];
+
+    if (!ready || !mapRef.current) return;
+      const map = mapRef.current;
 
       for (const p of points) {
         const band = aqiBand(p.aqi);
@@ -116,13 +149,22 @@ export default function AqiMap({
         });
         markers.push(marker);
       }
-    });
 
     return () => {
       cancelled = true;
       markers.forEach((m) => m.setMap(null));
     };
-  }, [points, reports, selectedId, onSelect]);
+  }, [points, reports, selectedId, onSelect, ready]);
 
-  return <div ref={ref} className="h-full w-full rounded-xl" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={ref} className="h-full w-full rounded-xl" aria-label="Houston air-quality map" />
+      {(!ready || error) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-card px-6 text-center" role={error ? "alert" : "status"}>
+          <p className="text-sm font-semibold">{error ? "Houston map unavailable" : "Loading Houston map…"}</p>
+          {error && <p className="max-w-sm text-sm text-muted-foreground">{error} Neighborhood readings are still available beside the map.</p>}
+        </div>
+      )}
+    </div>
+  );
 }
