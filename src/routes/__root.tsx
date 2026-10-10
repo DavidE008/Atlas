@@ -168,6 +168,13 @@ function RootComponent() {
                 Reports
               </Link>
               <Link
+                to="/missions"
+                className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                activeProps={{ className: "bg-accent text-foreground" }}
+              >
+                Missions
+              </Link>
+              <Link
                 to="/about"
                 className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 activeProps={{ className: "bg-accent text-foreground" }}
