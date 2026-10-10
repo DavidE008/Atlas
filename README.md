@@ -1,6 +1,8 @@
-# Welcome to your Lovable project
+# Atlas
 
-This project was built with [Lovable](https://lovable.dev).
+An independent Houston air-quality project featuring live neighborhood readings, a geographic map, community observations, and optional Solana devnet attestations.
+
+The website currently uses the AirWatch Houston name. Built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
