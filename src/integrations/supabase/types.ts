@@ -14,7 +14,124 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      aq_grid_points: {
+        Row: {
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+        }
+        Insert: {
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+        }
+        Update: {
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      report_verifications: {
+        Row: {
+          created_at: string
+          id: string
+          report_id: string
+          tx_signature: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          report_id: string
+          tx_signature: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          report_id?: string
+          tx_signature?: string
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_verifications_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          latitude: number
+          longitude: number
+          neighborhood: string | null
+          photo_path: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description: string
+          id?: string
+          latitude: number
+          longitude: number
+          neighborhood?: string | null
+          photo_path?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          neighborhood?: string | null
+          photo_path?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
