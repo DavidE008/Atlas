@@ -11,7 +11,8 @@
 - [x] `/about` pitch page
 - [x] Head metadata per route
 - [x] GitHub: user connected the repository for automatic sync
-- [ ] Rename the connected GitHub repository to atlas
-- [ ] Fix the blank map and verify loading or a visible error state
-- [ ] Resolve Solana browser/server import errors
-- [ ] Remove hackathon branding from the website and repository documentation; keep GitHub sync connected
+- [ ] Rename the connected GitHub repository to atlas — user must rename in GitHub Settings → General; Git sync does not provide agent API access
+- [x] Repair map initialization races and add loading, timeout, and authorization error states
+- [ ] Confirm live Google Map rendering — user check on the Lovable preview required; live Maps checks are unavailable in the sandbox
+- [x] Resolve Solana browser/server import errors; automatic build and routing test pass
+- [x] Remove hackathon branding from the website and repository documentation; keep GitHub sync connected
