@@ -10,5 +10,7 @@
 - [x] Solana: wallet connect + devnet memo attestation + explorer badge
 - [x] `/about` pitch page
 - [x] Head metadata per route
-- [ ] GitHub: user connects repo via Lovable GitHub integration (button in editor header) — then pushes sync per change
-- [ ] Verify map rendering on the published/preview origin (managed key is restricted to *.lovable.app)
+- [x] GitHub: user connected the repository for automatic sync
+- [ ] Rename the connected GitHub repository to atlas
+- [ ] Fix the blank map and verify loading or a visible error state
+- [ ] Resolve Solana browser/server import errors
