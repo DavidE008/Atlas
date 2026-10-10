@@ -14,3 +14,4 @@
 - [ ] Rename the connected GitHub repository to atlas
 - [ ] Fix the blank map and verify loading or a visible error state
 - [ ] Resolve Solana browser/server import errors
+- [ ] Remove hackathon branding from the website and repository documentation; keep GitHub sync connected
