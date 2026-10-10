@@ -88,7 +88,7 @@ export async function attestReport(params: {
     new TransactionInstruction({
       keys: [],
       programId: memoProgramId,
-      data: Buffer.from(memo, "utf-8"),
+      data: Buffer.from(memo, "utf-8") as unknown as import("buffer").Buffer,
     }),
   );
 
