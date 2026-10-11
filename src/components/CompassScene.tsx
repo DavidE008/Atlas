@@ -17,17 +17,17 @@ export function CompassScene({ compact = false }: { compact?: boolean }) {
     const bounds = event.currentTarget.getBoundingClientRect();
     scene.current.style.setProperty(
       "--tilt-x",
-      ((event.clientY - bounds.top) / bounds.height) * -32 + 16 + "deg",
+      ((event.clientY - bounds.top) / bounds.height) * -8 + 4 + "deg",
     );
     scene.current.style.setProperty(
       "--tilt-y",
-      ((event.clientX - bounds.left) / bounds.width) * 40 - 20 + "deg",
+      ((event.clientX - bounds.left) / bounds.width) * 12 - 6 + "deg",
     );
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
     const y = (event.clientY - bounds.top) / bounds.height - 0.5;
-    scene.current.style.setProperty("--drift-x", x * -24 + "px");
-    scene.current.style.setProperty("--drift-y", y * -24 + "px");
-    scene.current.style.setProperty("--ring-nudge", x * 24 + "deg");
+    scene.current.style.setProperty("--drift-x", x * -6 + "px");
+    scene.current.style.setProperty("--drift-y", y * -6 + "px");
+    scene.current.style.setProperty("--ring-nudge", x * 6 + "deg");
   }
   function reset() {
     scene.current?.style.setProperty("--tilt-x", "0deg");

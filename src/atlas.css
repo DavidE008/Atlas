@@ -222,20 +222,20 @@ a {
   inset: 0;
   transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transform-style: preserve-3d;
-  transition: transform 160ms ease-out;
+  transition: transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .compass-orbit-plane {
   position: absolute;
   inset: 0;
-  transform: rotateY(-24deg) rotateX(13deg) rotateZ(-16deg);
+  transform: rotateY(-12deg) rotateX(6deg) rotateZ(-12deg);
   transform-style: preserve-3d;
-  animation: orbit-sway 22s ease-in-out infinite;
+  animation: orbit-sway 32s ease-in-out infinite;
 }
 .compass-orbit {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  animation: orbit-spin 40s linear infinite;
+  animation: orbit-spin 65s linear infinite;
 }
 .compass-crystal {
   position: absolute;
@@ -244,7 +244,7 @@ a {
   object-fit: contain;
   inset: 11.5%;
   transform: translateZ(25px) rotate(-12deg);
-  animation: crystal-float 9s ease-in-out infinite;
+  animation: crystal-float 12s ease-in-out infinite;
   filter: drop-shadow(12px 22px 16px #234c2822);
 }
 .motion-toggle {
@@ -275,10 +275,10 @@ a {
 @keyframes orbit-sway {
   0%,
   100% {
-    transform: rotateY(-24deg) rotateX(13deg) rotateZ(-16deg);
+    transform: rotateY(-12deg) rotateX(6deg) rotateZ(-12deg);
   }
   50% {
-    transform: rotateY(24deg) rotateX(-8deg) rotateZ(-4deg);
+    transform: rotateY(4deg) rotateX(2deg) rotateZ(-8deg);
   }
 }
 @keyframes crystal-float {
@@ -287,7 +287,7 @@ a {
     transform: translate3d(0, 0, 25px) rotate(-12deg);
   }
   50% {
-    transform: translate3d(0, -12px, 25px) rotate(-8deg);
+    transform: translate3d(0, -4px, 25px) rotate(-11deg);
   }
 }
 .journey-strip {
@@ -1629,7 +1629,7 @@ select:focus-visible {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 650ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .compass-orbit-response {
   transform: rotateZ(calc(var(--compass-turn, 0deg) + var(--ring-nudge, 0deg)));
