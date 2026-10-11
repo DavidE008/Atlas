@@ -203,7 +203,9 @@ export function ProfilePhotoCrop({ file, onCancel, onSave }: ProfilePhotoCropPro
                   setOffset({ x: 0, y: 0 });
                   setZoom(1);
                 }}
-                onError={() => setError("This image couldn't be opened. Choose a JPG, PNG, or WebP photo.")}
+                onError={() =>
+                  setError("This image couldn't be opened. Choose a JPG, PNG, or WebP photo.")
+                }
                 style={imageStyle}
               />
             )}
