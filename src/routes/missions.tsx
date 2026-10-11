@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ATLAS_ADMIN_WALLET } from "@/lib/reviewer-admin-message";
 import * as exifr from "exifr";
 import { supabase } from "@/integrations/supabase/client";
 import { MissionMap, type MapCoordinate } from "@/components/MissionMap";
@@ -134,6 +135,7 @@ function MissionsPage() {
   const [reviewerConflictAttested, setReviewerConflictAttested] = useState(false);
   const [reviewerEnrollmentStatus, setReviewerEnrollmentStatus] = useState<string | null>(null);
   const [reviewConfig, setReviewConfig] = useState<AtlasReviewConfig | null>(null);
+  const [operatorSetupError, setOperatorSetupError] = useState("");
   const [assignmentAuthorityInput, setAssignmentAuthorityInput] = useState("");
   const [fallbackAuthorityInput, setFallbackAuthorityInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -599,6 +601,33 @@ function MissionsPage() {
     }
   };
 
+  const doVerifyOperatorSetup = async () => {
+    setBusy(true);
+    setOperatorSetupError("");
+    try {
+      const address = await connectWallet();
+      if (!address) return;
+      const config = await readMissionConfig();
+      setReviewConfig(config);
+      if (config.upgradeAuthority !== address) {
+        throw new Error(
+          "Connect the program authority wallet ending in 4Q5G3 to configure Atlas reviews.",
+        );
+      }
+      if (config.configured) {
+        setAssignmentAuthorityInput(config.assignmentAuthority ?? "");
+        setFallbackAuthorityInput(config.fallbackAuthority ?? "");
+      }
+      toast.success("Program authority verified. Atlas review controls are available below.");
+    } catch (e) {
+      setOperatorSetupError(
+        e instanceof Error ? e.message : "Could not load program authority. Try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doLoadServerAssignmentAddress = async () => {
     setBusy(true);
     try {
@@ -777,73 +806,98 @@ function MissionsPage() {
         </div>
       )}
 
-      {userId && wallet && reviewConfig?.upgradeAuthority === wallet && (
-        <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold">Atlas review controls · program authority</h2>
-            <Link
-              to="/admin/reviewers"
-              className="rounded-full border border-primary/25 bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5"
+      {userId &&
+        (!wallet || wallet === ATLAS_ADMIN_WALLET || reviewConfig?.upgradeAuthority === wallet) && (
+          <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-semibold">Atlas review controls · program authority</h2>
+              <Link
+                to="/admin/reviewers"
+                className="rounded-full border border-primary/25 bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5"
+              >
+                Manage reviewer requests
+              </Link>
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void doVerifyOperatorSetup()}
+              className="mt-3 rounded-lg border border-primary/25 bg-background px-3 py-2 text-sm font-semibold text-primary disabled:opacity-50"
             >
-              Manage reviewer requests
-            </Link>
+              Verify program authority wallet
+            </button>
+            {operatorSetupError && (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {operatorSetupError}
+              </p>
+            )}
+            {(!wallet || reviewConfig?.upgradeAuthority !== wallet) && (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Operator setup requires the wallet ending in 4Q5G3. Verify it here to load the
+                controls, even if you connected it on another page.
+              </p>
+            )}
+            {wallet && reviewConfig?.upgradeAuthority === wallet && (
+              <>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This setup is available only to the wallet that can upgrade the Atlas program. The
+                  assignment key expires in seven days at most and cannot accept reviews, decide
+                  cases, or move escrow.
+                </p>
+                <label className="mt-3 block text-xs font-medium text-muted-foreground">
+                  Restricted assignment wallet · public address
+                  <input
+                    value={assignmentAuthorityInput}
+                    onChange={(event) => setAssignmentAuthorityInput(event.target.value)}
+                    placeholder="Public address for the server assignment key"
+                    className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void doLoadServerAssignmentAddress()}
+                  className="mt-2 rounded-lg border border-primary/25 bg-background px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
+                >
+                  Load server assignment address
+                </button>
+                {!reviewConfig.configured && (
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
+                    Separate Atlas fallback wallet · public address
+                    <input
+                      value={fallbackAuthorityInput}
+                      onChange={(event) => setFallbackAuthorityInput(event.target.value)}
+                      placeholder="Public address controlled by the Atlas operator"
+                      className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+                    />
+                  </label>
+                )}
+                {reviewConfig.configured && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Fallback wallet:{" "}
+                    <span className="font-mono">{reviewConfig.fallbackAuthority}</span> · assignment
+                    key expires{" "}
+                    {new Date((reviewConfig.assignmentExpiresAt ?? 0) * 1000).toLocaleString()}.
+                  </p>
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Keep the assignment wallet’s secret only in Vercel as{" "}
+                  <code>ATLAS_ASSIGNMENT_KEYPAIR</code>. Never paste or commit it. Set the
+                  corresponding 64-byte JSON secret in Vercel before assignments can be signed.
+                </p>
+                <button
+                  disabled={busy || !assignmentAuthorityInput.trim()}
+                  onClick={() => void doConfigureReviewKeys()}
+                  className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  {reviewConfig.configured
+                    ? "Renew assignment key · 6 days"
+                    : "Initialize reviewer controls"}
+                </button>
+              </>
+            )}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This setup is available only to the wallet that can upgrade the Atlas program. The
-            assignment key expires in seven days at most and cannot accept reviews, decide cases, or
-            move escrow.
-          </p>
-          <label className="mt-3 block text-xs font-medium text-muted-foreground">
-            Restricted assignment wallet · public address
-            <input
-              value={assignmentAuthorityInput}
-              onChange={(event) => setAssignmentAuthorityInput(event.target.value)}
-              placeholder="Public address for the server assignment key"
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
-            />
-          </label>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void doLoadServerAssignmentAddress()}
-            className="mt-2 rounded-lg border border-primary/25 bg-background px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
-          >
-            Load server assignment address
-          </button>
-          {!reviewConfig.configured && (
-            <label className="mt-3 block text-xs font-medium text-muted-foreground">
-              Separate Atlas fallback wallet · public address
-              <input
-                value={fallbackAuthorityInput}
-                onChange={(event) => setFallbackAuthorityInput(event.target.value)}
-                placeholder="Public address controlled by the Atlas operator"
-                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
-              />
-            </label>
-          )}
-          {reviewConfig.configured && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Fallback wallet: <span className="font-mono">{reviewConfig.fallbackAuthority}</span> ·
-              assignment key expires{" "}
-              {new Date((reviewConfig.assignmentExpiresAt ?? 0) * 1000).toLocaleString()}.
-            </p>
-          )}
-          <p className="mt-3 text-xs text-muted-foreground">
-            Keep the assignment wallet’s secret only in Vercel as{" "}
-            <code>ATLAS_ASSIGNMENT_KEYPAIR</code>. Never paste or commit it. Set the corresponding
-            64-byte JSON secret in Vercel before assignments can be signed.
-          </p>
-          <button
-            disabled={busy || !assignmentAuthorityInput.trim()}
-            onClick={() => void doConfigureReviewKeys()}
-            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            {reviewConfig.configured
-              ? "Renew assignment key · 6 days"
-              : "Initialize reviewer controls"}
-          </button>
-        </div>
-      )}
+        )}
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Metric

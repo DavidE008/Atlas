@@ -127,8 +127,11 @@ async function sendAssignmentInstruction(input: {
   const [config] = PublicKey.findProgramAddressSync([new TextEncoder().encode("config")], program);
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const configInfo = await connection.getAccountInfo(config, "confirmed");
+  if (!configInfo)
+    throw new Error(
+      "Atlas review controls have not been initialized. The operator must open Missions, verify the program authority wallet, load the server assignment address, and initialize reviewer controls with a separate fallback wallet.",
+    );
   if (
-    !configInfo ||
     configInfo.data.length < 113 ||
     !bytesEqual(configInfo.data.subarray(40, 72), auth.keypair.publicKey.toBytes())
   )
