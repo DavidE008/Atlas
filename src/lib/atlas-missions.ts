@@ -2,7 +2,7 @@ import type { PublicKey, Transaction } from "@solana/web3.js";
 import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 
-export const ATLAS_PROGRAM_ID = "D6jfm1re7c7edV47j9io9SkLXXN2FhjhWCu3Y66mUvnX";
+export const ATLAS_PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
 

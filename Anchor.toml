@@ -6,7 +6,7 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-atlas_missions = "D6jfm1re7c7edV47j9io9SkLXXN2FhjhWCu3Y66mUvnX"
+atlas_missions = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ"
 
 [provider]
 cluster = "devnet"

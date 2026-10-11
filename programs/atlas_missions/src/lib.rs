@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 
-declare_id!("D6jfm1re7c7edV47j9io9SkLXXN2FhjhWCu3Y66mUvnX");
+declare_id!("FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ");
 
 #[program]
 pub mod atlas_missions {
@@ -56,9 +56,10 @@ pub mod atlas_missions {
         if approve {
             let mission_info = mission.to_account_info(); let participant_info = ctx.accounts.participant.to_account_info();
             let reward = mission.reward_lamports;
-            require!(mission_info.lamports() >= reward, MissionError::EscrowUnderfunded);
-            **mission_info.try_borrow_mut_lamports()? -= reward;
-            **participant_info.try_borrow_mut_lamports()? += reward;
+            let updated_mission_balance = mission_info.lamports().checked_sub(reward).ok_or(MissionError::EscrowUnderfunded)?;
+            let updated_participant_balance = participant_info.lamports().checked_add(reward).ok_or(MissionError::ArithmeticOverflow)?;
+            **mission_info.try_borrow_mut_lamports()? = updated_mission_balance;
+            **participant_info.try_borrow_mut_lamports()? = updated_participant_balance;
             mission.status = MissionStatus::Paid;
         } else { mission.status = MissionStatus::Rejected; }
         emit!(MissionResolved { mission: mission.key(), participant, reviewer: mission.reviewer, approved: approve, reward_lamports: if approve { mission.reward_lamports } else { 0 } });
@@ -161,5 +162,6 @@ pub enum MissionError {
     #[msg("Sponsor does not match this mission.")] InvalidSponsor,
     #[msg("Participant does not match this mission.")] InvalidParticipant,
     #[msg("Escrow balance is below the promised reward.")] EscrowUnderfunded,
+    #[msg("Lamport balance arithmetic overflowed.")] ArithmeticOverflow,
     #[msg("Mission has not reached its refund expiry.")] NotExpired,
 }
