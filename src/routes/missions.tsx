@@ -16,11 +16,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import * as exifr from "exifr";
 import { supabase } from "@/integrations/supabase/client";
+import { MissionMap, type MapCoordinate } from "@/components/MissionMap";
 import {
   getMissionDeadlines,
   getMissionDisplayStatus,
-  getMissionMapPosition,
   MISSION_LOCATIONS,
 } from "@/lib/mission-demo";
 import {
@@ -33,6 +34,7 @@ import {
   resolveMission,
   submitMissionEvidence,
 } from "@/lib/atlas-missions";
+import { searchMapboxLocations, type MapboxLocationResult } from "@/lib/mapbox-location";
 
 type Mission = {
   id: string;
@@ -453,27 +455,19 @@ function MissionsPage() {
             </button>
           </div>
           <div className="mission-field relative h-[360px] overflow-hidden">
-            <img
-              src="/images/atlas-landscape.webp"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-45"
+            <MissionMap
+              points={filtered.map((mission) => ({
+                id: mission.id,
+                label: mission.title,
+                latitude: mission.latitude,
+                longitude: mission.longitude,
+              }))}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelectedId}
+              className="absolute inset-0"
             />
-            {filtered.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setSelectedId(m.id)}
-                aria-label={m.title}
-                className={`absolute rounded-full p-2 transition hover:scale-125 ${selected?.id === m.id ? "bg-primary text-primary-foreground shadow-[0_0_24px_#92e3bd99]" : "bg-card text-primary"}`}
-                style={{
-                  left: `${getMissionMapPosition(m.latitude, m.longitude).left}%`,
-                  top: `${getMissionMapPosition(m.latitude, m.longitude).top}%`,
-                }}
-              >
-                <MapPin className="h-4 w-4" />
-              </button>
-            ))}
             {filtered.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center p-5">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-5">
                 <div className="mission-empty">
                   <h3>
                     {loading
@@ -491,7 +485,7 @@ function MissionsPage() {
                   </p>
                   {!loading && !loadError && (
                     <button
-                      className="button-text"
+                      className="pointer-events-auto"
                       onClick={() =>
                         userId
                           ? setShowCreate(true)
@@ -502,14 +496,17 @@ function MissionsPage() {
                     </button>
                   )}
                   {!loading && loadError && (
-                    <button className="button-text" onClick={() => void refresh().catch(() => {})}>
+                    <button
+                      className="button-text pointer-events-auto"
+                      onClick={() => void refresh().catch(() => {})}
+                    >
                       Try again
                     </button>
                   )}
                 </div>
               </div>
             )}
-            <div className="absolute bottom-3 left-3 rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-xs text-white/70">
+            <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm">
               <Crosshair className="mr-1 inline h-3 w-3 text-primary" /> Houston, TX ·{" "}
               {loading ? "Loading" : loadError ? "Unavailable" : filtered.length + " missions"}
             </div>
@@ -828,10 +825,69 @@ function CreateMission({
     "Collect visible litter along the marked campus path. Submit a clear completion photo. A designated reviewer checks the work.",
   );
   const [locationName, setLocationName] = useState<string>(MISSION_LOCATIONS[0].name);
+  const [location, setLocation] = useState<MapCoordinate>({
+    latitude: MISSION_LOCATIONS[0].latitude,
+    longitude: MISSION_LOCATIONS[0].longitude,
+  });
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationResults, setLocationResults] = useState<MapboxLocationResult[]>([]);
+  const [locationPhotoName, setLocationPhotoName] = useState("");
+  const [locationSearchBusy, setLocationSearchBusy] = useState(false);
+  const [locationSourceNote, setLocationSourceNote] = useState("");
   const [reviewer, setReviewer] = useState("");
   const [reward, setReward] = useState("0.05");
   const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
+  const findLocation = async () => {
+    setLocationSearchBusy(true);
+    try {
+      const results = await searchMapboxLocations(locationQuery);
+      setLocationResults(results);
+      if (results.length === 0) toast.info("No matching addresses found.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Address search failed");
+    } finally {
+      setLocationSearchBusy(false);
+    }
+  };
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("This browser does not support location access.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocation({ latitude: coords.latitude, longitude: coords.longitude });
+        setLocationName("Current location");
+        setLocationSourceNote("Pin placed from this device’s location.");
+      },
+      () => toast.error("Location access was unavailable. You can still search or move the pin."),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
+  const handlePhotoLocation = async (file: File | undefined) => {
+    if (!file) return;
+    setLocationPhotoName(file.name);
+    setLocationSourceNote("");
+    try {
+      const gps = await exifr.gps(file);
+      if (!gps || !Number.isFinite(gps.latitude) || !Number.isFinite(gps.longitude)) {
+        setLocationSourceNote(
+          "No GPS data was found in this photo. Search or place the pin on the map.",
+        );
+        return;
+      }
+      setLocation({ latitude: gps.latitude, longitude: gps.longitude });
+      setLocationName("Photo location");
+      setLocationSourceNote(
+        "Pin placed from the photo’s embedded GPS. The photo stays on this device.",
+      );
+    } catch {
+      setLocationSourceNote(
+        "This photo’s GPS data could not be read. Search or place the pin on the map.",
+      );
+    }
+  };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const authenticatedUserId = await requireAccount();
@@ -841,14 +897,14 @@ function CreateMission({
       .map((v) => v.toString(16).padStart(2, "0"))
       .join("");
     const { submitBy, reviewBy } = getMissionDeadlines();
-    const location =
-      MISSION_LOCATIONS.find((item) => item.name === locationName) ?? MISSION_LOCATIONS[0];
     try {
       const walletAddress = await (await import("@/lib/atlas-missions")).connectMissionWallet();
       const terms = JSON.stringify({
         title,
         description,
-        location: location.name,
+        location: locationName,
+        latitude: location.latitude,
+        longitude: location.longitude,
         isDemo,
         reward,
         submitBy: submitBy.toISOString(),
@@ -867,7 +923,7 @@ function CreateMission({
           description,
           is_demo: isDemo,
           category: "cleanup",
-          neighborhood: location.name,
+          neighborhood: locationName,
           latitude: location.latitude,
           longitude: location.longitude,
           reward_lamports: Math.round(Number(reward) * 1e9),
@@ -957,20 +1013,96 @@ function CreateMission({
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Houston area">
-              <select
-                required
-                value={locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-              >
-                {MISSION_LOCATIONS.map((location) => (
-                  <option key={location.name} value={location.name}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
+            <Field label="Find the exact location">
+              <div className="flex gap-2">
+                <input
+                  value={locationQuery}
+                  onChange={(event) => setLocationQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void findLocation();
+                    }
+                  }}
+                  placeholder="Search an address or place in Houston"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => void findLocation()}
+                  disabled={locationSearchBusy || locationQuery.trim().length < 3}
+                  className="rounded-lg border border-border px-3 text-sm font-medium hover:border-primary/50 disabled:opacity-50"
+                >
+                  {locationSearchBusy ? "Searching…" : "Search"}
+                </button>
+              </div>
+              {locationResults.length > 0 && (
+                <div className="mt-2 overflow-hidden rounded-lg border border-border bg-background">
+                  {locationResults.map((result) => (
+                    <button
+                      type="button"
+                      key={`${result.label}-${result.latitude}-${result.longitude}`}
+                      onClick={() => {
+                        setLocation({ latitude: result.latitude, longitude: result.longitude });
+                        setLocationName(result.label);
+                        setLocationResults([]);
+                        setLocationSourceNote(
+                          "Address pinned. Drag the marker or click the map to fine-tune it.",
+                        );
+                      }}
+                      className="block w-full border-b border-border px-3 py-2 text-left text-xs last:border-b-0 hover:bg-primary/5"
+                    >
+                      {result.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </Field>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+              <Field label="Displayed location">
+                <input
+                  required
+                  maxLength={160}
+                  value={locationName}
+                  onChange={(event) => setLocationName(event.target.value)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+              </Field>
+              <button
+                type="button"
+                onClick={useCurrentLocation}
+                className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:border-primary/50"
+              >
+                <Crosshair className="h-4 w-4" /> My location
+              </button>
+              <label className="mt-5 inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium hover:border-primary/50">
+                <MapPin className="h-4 w-4" /> Photo GPS
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(event) => void handlePhotoLocation(event.currentTarget.files?.[0])}
+                />
+              </label>
+            </div>
+            <MissionMap
+              pickable
+              location={location}
+              onLocationChange={(coordinate) => {
+                setLocation(coordinate);
+                setLocationSourceNote("Pin moved. Click or drag the marker to place it precisely.");
+              }}
+              className="h-56 overflow-hidden rounded-xl border border-border"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+              <span>Click the map or drag the pin to set the exact spot.</span>
+              <span>
+                {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
+              </span>
+              {locationPhotoName && <span>Photo checked: {locationPhotoName}</span>}
+              {locationSourceNote && <span className="basis-full">{locationSourceNote}</span>}
+            </div>
             <Field label="Reward in SOL">
               <input
                 required

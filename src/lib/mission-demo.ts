@@ -20,13 +20,6 @@ export function getMissionDeadlines(now = new Date()) {
   return { submitBy, reviewBy };
 }
 
-export function getMissionMapPosition(latitude: number, longitude: number) {
-  return {
-    left: Math.min(90, Math.max(10, ((longitude + 95.65) / 0.65) * 100)),
-    top: Math.min(88, Math.max(12, (1 - (latitude - 29.55) / 0.4) * 100)),
-  };
-}
-
 export function getMissionDisplayStatus(
   status: string | null | undefined,
   submitBy: string,

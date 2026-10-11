@@ -1177,6 +1177,55 @@ em {
   padding-top: 52px;
   padding-bottom: 60px;
 }
+.atlas-map-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 8rem;
+  overflow: hidden;
+  background: #e8eee7;
+}
+.atlas-map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.atlas-map-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(247 247 241 / 85%);
+  color: #44524a;
+  font-size: 0.8rem;
+  text-align: center;
+  pointer-events: none;
+}
+.atlas-map-pin {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 2px solid white;
+  border-radius: 9999px 9999px 9999px 0;
+  background: #2b7453;
+  box-shadow: 0 2px 8px rgb(18 49 35 / 40%);
+  transform: rotate(-45deg);
+  cursor: pointer;
+  transition: background-color 160ms ease, scale 160ms ease;
+}
+.atlas-map-pin:hover,
+.atlas-map-pin:focus-visible {
+  scale: 1.25;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.atlas-map-pin.is-selected {
+  width: 1.4rem;
+  height: 1.4rem;
+  background: #103e2f;
+}
 .mission-field {
   background: #e8ede3;
 }
