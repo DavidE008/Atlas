@@ -93,6 +93,7 @@ export type Database = {
           created_by: string
           description: string
           id: string
+          is_demo: boolean
           latitude: number
           longitude: number
           mission_address: string | null
@@ -115,6 +116,7 @@ export type Database = {
           created_by: string
           description: string
           id?: string
+          is_demo?: boolean
           latitude: number
           longitude: number
           mission_address?: string | null
@@ -137,6 +139,7 @@ export type Database = {
           created_by?: string
           description?: string
           id?: string
+          is_demo?: boolean
           latitude?: number
           longitude?: number
           mission_address?: string | null

@@ -18,6 +18,12 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  getMissionDeadlines,
+  getMissionDisplayStatus,
+  getMissionMapPosition,
+  MISSION_LOCATIONS,
+} from "@/lib/mission-demo";
+import {
   ATLAS_PROGRAM_ID,
   claimMission,
   createFundedMission,
@@ -38,6 +44,7 @@ type Mission = {
   terms_hash: string | null;
   title: string;
   description: string;
+  is_demo: boolean;
   category: string;
   neighborhood: string;
   latitude: number;
@@ -85,6 +92,7 @@ function MissionsPage() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   async function refresh() {
     setLoading(true);
@@ -150,14 +158,23 @@ function MissionsPage() {
       toast.error(error instanceof Error ? error.message : "Could not load missions"),
     );
   }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const filtered = useMemo(
     () => missions.filter((m) => category === "All missions" || m.category === "cleanup"),
     [missions, category],
   );
   const selected = missions.find((m) => m.id === selectedId) ?? filtered[0] ?? null;
-  const status = selected?.chainStatus ?? (selected?.mission_address ? "Checking" : "Draft");
+  const rawStatus = selected?.chainStatus ?? (selected?.mission_address ? "Checking" : "Draft");
+  const status = selected
+    ? getMissionDisplayStatus(rawStatus, selected.submit_by, selected.review_by, now)
+    : "Draft";
   const active = missions.filter((m) =>
-    ["Funded", "Claimed", "Submitted"].includes(m.chainStatus ?? ""),
+    ["Funded", "Claimed", "Submitted"].includes(
+      getMissionDisplayStatus(m.chainStatus, m.submit_by, m.review_by, now),
+    ),
   ).length;
   const paid = missions.filter((m) => m.chainStatus === "Paid").length;
   const connectWallet = async () => {
@@ -391,8 +408,8 @@ function MissionsPage() {
                 aria-label={m.title}
                 className={`absolute rounded-full p-2 transition hover:scale-125 ${selected?.id === m.id ? "bg-primary text-primary-foreground shadow-[0_0_24px_#92e3bd99]" : "bg-card text-primary"}`}
                 style={{
-                  left: `${Math.min(90, Math.max(10, ((m.longitude + 95.65) / 0.65) * 100))}%`,
-                  top: `${Math.min(88, Math.max(12, (1 - (m.latitude - 29.55) / 0.4) * 100))}%`,
+                  left: `${getMissionMapPosition(m.latitude, m.longitude).left}%`,
+                  top: `${getMissionMapPosition(m.latitude, m.longitude).top}%`,
                 }}
               >
                 <MapPin className="h-4 w-4" />
@@ -462,7 +479,17 @@ function MissionsPage() {
                   <span className="text-[10px] uppercase tracking-[0.15em] text-primary">
                     {m.neighborhood}
                   </span>
-                  <StatusPill status={m.chainStatus ?? "Draft"} />
+                  <div className="flex items-center gap-2">
+                    {m.is_demo && <DemoLabel />}
+                    <StatusPill
+                      status={getMissionDisplayStatus(
+                        m.chainStatus ?? "Draft",
+                        m.submit_by,
+                        m.review_by,
+                        now,
+                      )}
+                    />
+                  </div>
                 </div>
                 <p className="mt-2 font-semibold">{m.title}</p>
                 <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -486,12 +513,20 @@ function MissionsPage() {
                 <span className="text-xs uppercase tracking-[0.18em] text-primary">
                   {selected.neighborhood}
                 </span>
-                <StatusPill status={status} />
+                <div className="flex items-center gap-2">
+                  {selected.is_demo && <DemoLabel />}
+                  <StatusPill status={status} />
+                </div>
               </div>
               <h2 className="mt-3 text-2xl font-bold">{selected.title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {selected.description}
               </p>
+              {selected.is_demo && (
+                <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
+                  Devnet demonstration example. This record does not claim verified real-world cleanup.
+                </p>
+              )}
               <div className="my-5 grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-background p-3">
                   <p className="text-[10px] uppercase text-muted-foreground">Reward escrow</p>
@@ -581,11 +616,8 @@ function MissionsPage() {
                     </button>
                   </div>
                 )}
-                {["Funded", "Claimed", "Submitted"].includes(status) &&
-                  Date.now() >
-                    Date.parse(
-                      status === "Submitted" ? selected.review_by : selected.submit_by,
-                    ) && (
+                {["Funded", "Claimed", "Submitted"].includes(selected.chainStatus ?? "") &&
+                  status === "Expired" && (
                     <ActionButton busy={busy} onClick={doRefund}>
                       Refund expired mission
                     </ActionButton>
@@ -680,11 +712,19 @@ function Metric({ label, value, icon }: { label: string; value: string; icon: Re
 }
 function StatusPill({ status }: { status: string }) {
   const settled = status === "Paid";
+  const expired = status === "Expired";
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${settled ? "bg-primary/15 text-primary" : status === "Unavailable" ? "bg-destructive/10 text-destructive" : "bg-secondary text-muted-foreground"}`}
+      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${settled ? "bg-primary/15 text-primary" : expired ? "bg-amber-100 text-amber-800" : status === "Unavailable" ? "bg-destructive/10 text-destructive" : "bg-secondary text-muted-foreground"}`}
     >
       {status}
+    </span>
+  );
+}
+function DemoLabel() {
+  return (
+    <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+      Devnet demo
     </span>
   );
 }
@@ -726,9 +766,10 @@ function CreateMission({
   const [description, setDescription] = useState(
     "Collect visible litter along the marked campus path. Submit a clear completion photo. A designated reviewer checks the work.",
   );
-  const [neighborhood, setNeighborhood] = useState("University of Houston");
+  const [locationName, setLocationName] = useState<string>(MISSION_LOCATIONS[0].name);
   const [reviewer, setReviewer] = useState("");
   const [reward, setReward] = useState("0.05");
+  const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -740,14 +781,15 @@ function CreateMission({
     const missionId = [...crypto.getRandomValues(new Uint8Array(16))]
       .map((v) => v.toString(16).padStart(2, "0"))
       .join("");
-    const submitBy = new Date(Date.now() + 8 * 60 * 60 * 1000);
-    const reviewBy = new Date(Date.now() + 16 * 60 * 60 * 1000);
+    const { submitBy, reviewBy } = getMissionDeadlines();
+    const location = MISSION_LOCATIONS.find((item) => item.name === locationName) ?? MISSION_LOCATIONS[0];
     try {
       const walletAddress = await (await import("@/lib/atlas-missions")).connectMissionWallet();
       const terms = JSON.stringify({
         title,
         description,
-        neighborhood,
+        location: location.name,
+        isDemo,
         reward,
         submitBy: submitBy.toISOString(),
         reviewBy: reviewBy.toISOString(),
@@ -763,10 +805,11 @@ function CreateMission({
           program_address: ATLAS_PROGRAM_ID,
           title,
           description,
+          is_demo: isDemo,
           category: "cleanup",
-          neighborhood,
-          latitude: 29.7199,
-          longitude: -95.3422,
+          neighborhood: location.name,
+          latitude: location.latitude,
+          longitude: location.longitude,
           reward_lamports: Math.round(Number(reward) * 1e9),
           submit_by: submitBy.toISOString(),
           review_by: reviewBy.toISOString(),
@@ -855,12 +898,16 @@ function CreateMission({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Houston area">
-              <input
+              <select
                 required
-                value={neighborhood}
-                onChange={(e) => setNeighborhood(e.target.value)}
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-              />
+              >
+                {MISSION_LOCATIONS.map((location) => (
+                  <option key={location.name} value={location.name}>{location.name}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Reward in SOL">
               <input
@@ -887,9 +934,21 @@ function CreateMission({
             />
           </Field>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Funding opens an 8-hour submission window and a 16-hour review window. The reviewer must
-            be a different wallet than the sponsor and participant.
+            Funding opens a 72-hour submission window and a 24-hour review window after submissions
+            close. The reviewer must be different from the sponsor and participant.
           </p>
+          <label className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={isDemo}
+              onChange={(event) => setIsDemo(event.target.checked)}
+              className="mt-0.5 accent-primary"
+            />
+            <span>
+              <strong className="text-foreground">Devnet demo example.</strong> This mission uses
+              sample details and must not be presented as verified real-world environmental work.
+            </span>
+          </label>
           <button
             disabled={busy || !userId}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
