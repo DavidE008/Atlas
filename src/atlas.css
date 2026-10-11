@@ -436,6 +436,33 @@ em {
   line-height: 1.6;
   margin-bottom: 26px;
 }
+.auth-network {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: -8px 0 22px;
+  padding: 9px 12px;
+  border: 1px solid #e4e9df;
+  border-radius: 999px;
+  background: #f7f8f2;
+  color: #344d3a;
+  font-size: 12px;
+  font-weight: 600;
+}
+.auth-network img {
+  display: block;
+  width: 20px;
+  height: 18px;
+}
+.auth-network-tag {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e6eee3;
+  color: #587153;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
 .google-button {
   display: flex;
   width: 100%;

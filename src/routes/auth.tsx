@@ -127,6 +127,13 @@ function AuthPage() {
                   ? "Create an account to fund missions and share the work you do."
                   : "Sign in to pick up where you left off."}
               </p>
+              {signup && (
+                <div className="auth-network" aria-label="Atlas missions run on Solana Devnet">
+                  <img src="/solana-logo-mark.svg" alt="Solana logo" />
+                  <span>Built on Solana</span>
+                  <span className="auth-network-tag">DEVNET</span>
+                </div>
+              )}
               <form onSubmit={submit} className="atlas-form">
                 {signup && (
                   <label htmlFor="atlas-name">
