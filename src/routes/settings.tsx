@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Check, KeyRound, Loader2, Mail, Save, UserRound, Wallet } from "lucide-react";
+import { Check, KeyRound, Loader2, Mail, Save, UserRound, Wallet } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { connectWallet } from "@/lib/solana";
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,13 +51,15 @@ function SettingsPage() {
         if (settingsResult.data) setWalletAddress(settingsResult.data.wallet_address);
         if (profileResult.error) setError(profileResult.error.message);
         if (settingsResult.error) setError(settingsResult.error.message);
+      } else {
+        if (live) void navigate({ to: "/auth", search: { mode: "signin" }, replace: true });
       }
       if (live) setLoading(false);
     })();
     return () => {
       live = false;
     };
-  }, []);
+  }, [navigate]);
 
   function clearFeedback() {
     setError("");
@@ -153,20 +156,7 @@ function SettingsPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <section className="settings-page">
-        <div className="settings-heading">
-          <span className="eyebrow">Your Atlas account</span>
-          <h1>Account settings</h1>
-          <p>Sign in to update your profile, security, and connected wallet.</p>
-          <Link to="/auth" search={{ mode: "signin" }} className="button-primary">
-            Sign in <ArrowLeft size={17} />
-          </Link>
-        </div>
-      </section>
-    );
-  }
+  if (!user) return null;
 
   return (
     <section className="settings-page">

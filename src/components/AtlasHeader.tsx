@@ -9,10 +9,14 @@ export function AtlasHeader() {
   const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
     let live = true;
+    let authEventReceived = false;
     void supabase.auth.getSession().then(({ data }) => {
-      if (live) setSignedIn(!!data.session);
+      if (live && !authEventReceived) setSignedIn(!!data.session);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setSignedIn(!!session));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      authEventReceived = true;
+      setSignedIn(!!session);
+    });
     return () => {
       live = false;
       data.subscription.unsubscribe();
