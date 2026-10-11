@@ -1211,15 +1211,16 @@ em {
   border-radius: 9999px 9999px 9999px 0;
   background: var(--mission-category-color, #2b7453);
   box-shadow: 0 2px 8px rgb(18 49 35 / 40%);
-  transform: rotate(-45deg);
   cursor: pointer;
   transition:
     background-color 160ms ease,
-    scale 160ms ease;
+    box-shadow 160ms ease;
 }
 .atlas-map-pin:hover,
 .atlas-map-pin:focus-visible {
-  scale: 1.25;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--mission-category-color, #2b7453) 22%, transparent),
+    0 2px 8px rgb(18 49 35 / 40%);
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
