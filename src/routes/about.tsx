@@ -37,8 +37,9 @@ function AboutPage() {
           <span>01 / Discover & fund</span>
           <h2>Start close to home.</h2>
           <p>
-            Explore local environmental missions. Sponsors define the work, choose an independent
-            reviewer, and fund the reward before someone begins.
+            Explore local environmental and community missions. Sponsors define the work and fund
+            the reward before someone begins. Atlas assigns an independent pilot reviewer after
+            evidence is submitted.
           </p>
         </article>
         <article>
@@ -55,8 +56,9 @@ function AboutPage() {
           <span>03 / Review & reward</span>
           <h2>Good work deserves follow-through.</h2>
           <p>
-            The designated reviewer checks the evidence. Approval releases the reward; rejection
-            returns it to the sponsor. Expired missions can be refunded under the mission rules.
+            The assigned reviewer checks the evidence. Approval releases the reward. A rejection
+            keeps it in escrow during the 24-hour appeal window; a different reviewer or Atlas
+            fallback handles the next decision under the mission rules.
           </p>
         </article>
       </div>

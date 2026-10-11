@@ -222,7 +222,7 @@ a {
   inset: 0;
   transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
   transform-style: preserve-3d;
-  transition: transform 0.7s ease-out;
+  transition: transform 160ms ease-out;
 }
 .compass-orbit-plane {
   position: absolute;
@@ -1591,5 +1591,155 @@ body:has(.landing-hero) .site-header {
   }
   .hero-trust {
     background: #faf8f1d9;
+  }
+}
+
+/* Interaction and spacing polish, keeping the original Atlas art direction. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 2px;
+}
+.mission-evidence-note {
+  margin-top: 10px;
+  scroll-margin-block: 24px;
+}
+.mission-evidence-note:focus-visible {
+  outline-offset: 2px;
+}
+.mission-browse-card {
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+.mission-browse-card:hover {
+  box-shadow: 0 6px 20px #193c270a;
+}
+#mission-details {
+  min-width: 0;
+  scroll-margin-top: 24px;
+}
+#mission-details input[type="file"] {
+  max-width: 100%;
+  overflow: hidden;
+}
+.compass-orbit-response,
+.compass-needle-response {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.compass-orbit-response {
+  transform: rotateZ(calc(var(--compass-turn, 0deg) + var(--ring-nudge, 0deg)));
+}
+.compass-needle-response {
+  transform: translate3d(var(--drift-x, 0px), var(--drift-y, 0px), 35px);
+}
+.compass-motion-controls {
+  position: absolute;
+  bottom: 0;
+  right: 2%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 5;
+}
+.compass-motion-controls .motion-toggle,
+.compass-turn {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid #214c2530;
+  border-radius: 30px;
+  background: #faf8f1e8;
+  color: #244333;
+  font-size: 11px;
+  backdrop-filter: blur(12px);
+}
+.compass-turn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.landing-hero {
+  min-height: max(680px, 100svh);
+}
+.hero-copy {
+  padding-top: clamp(118px, 16svh, 160px);
+  padding-bottom: 56px;
+}
+.hero-copy h1 {
+  font-size: clamp(56px, min(7vw, 10svh), 104px);
+  line-height: 0.94;
+  letter-spacing: -0.065em;
+}
+.hero-copy > p:not(.hero-trust) {
+  font-size: clamp(16px, 1.5vw, 21px);
+  letter-spacing: -0.025em;
+}
+.hero-compass {
+  width: min(46vw, 72svh);
+  top: 20%;
+  right: 3%;
+}
+.hero-actions {
+  gap: 24px;
+}
+.journey-strip {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+@media (max-width: 1100px) and (min-width: 761px) {
+  .hero-compass {
+    top: 25%;
+    right: 0;
+    width: 45%;
+  }
+  .hero-copy {
+    width: 57%;
+  }
+}
+@media (max-width: 760px) {
+  .landing-hero {
+    min-height: auto;
+    padding-bottom: 28px;
+  }
+  .hero-copy {
+    width: 100%;
+    padding: 108px 6% 0;
+  }
+  .hero-copy h1 {
+    font-size: clamp(50px, 11.5vw, 76px);
+    line-height: 0.98;
+  }
+  .hero-compass {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    width: min(88%, 400px);
+    margin: 32px auto 20px;
+  }
+  .compass-motion-controls {
+    bottom: -16px;
+    right: 0;
+  }
+  .journey-strip article {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .compass-orbit-response,
+  .compass-needle-response {
+    transform: none;
+    transition: none;
+  }
+  .mission-browse-card {
+    transition: none;
   }
 }

@@ -1032,13 +1032,13 @@ function MissionsPage() {
                 key={m.id}
                 onClick={() => viewMission(m.id)}
                 aria-current={selected?.id === m.id ? "true" : undefined}
-                className={`rounded-xl border p-4 text-left transition hover:border-primary/60 ${selected?.id === m.id ? "border-primary/60 bg-primary/5" : "border-border bg-background/40"}`}
+                className={`mission-browse-card min-w-0 rounded-xl border p-4 text-left transition hover:border-primary/60 ${selected?.id === m.id ? "border-primary/60 bg-primary/5" : "border-border bg-background/40"}`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.15em] text-primary">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1 basis-32 break-words text-[10px] uppercase tracking-[0.15em] text-primary">
                     {m.neighborhood}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {m.is_demo && <DemoLabel />}
                     <StatusPill
                       status={getMissionDisplayStatus(
@@ -1085,11 +1085,11 @@ function MissionsPage() {
               ref={missionDetailsCardRef}
               className="rounded-2xl border border-border bg-card p-5"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase tracking-[0.18em] text-primary">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <span className="min-w-0 flex-1 basis-48 break-words text-xs uppercase tracking-[0.18em] text-primary">
                   {selected.neighborhood}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {selected.is_demo && <DemoLabel />}
                   <StatusPill status={status} />
                 </div>
@@ -1209,7 +1209,7 @@ function MissionsPage() {
                         </p>
                       )}
                       <label className="block space-y-1.5 text-sm">
-                        <span className="font-medium">
+                        <span className="block font-medium">
                           {status === "Funded" ? "Evidence note (draft)" : "Evidence note"}
                         </span>
                         <textarea
@@ -1217,7 +1217,7 @@ function MissionsPage() {
                           onChange={(e) => setNote(e.target.value)}
                           placeholder="Describe what you completed and what the photos show"
                           rows={3}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-sm"
+                          className="mission-evidence-note block min-h-32 w-full resize-y rounded-xl border border-border bg-background p-3 text-sm leading-relaxed"
                         />
                       </label>
                       <label className="block space-y-1.5 text-sm">
