@@ -810,6 +810,38 @@ function MissionsPage() {
       )}
 
       {userId &&
+        missions.some((mission) =>
+          ["assigned", "accepted"].includes(mission.reviewAssignment?.status ?? ""),
+        ) && (
+          <section className="mb-5 rounded-2xl border border-primary/20 bg-card p-5">
+            <h2 className="font-semibold">Your review assignments</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select a mission below, then connect its assigned wallet to accept or decide the
+              review.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {missions
+                .filter((mission) =>
+                  ["assigned", "accepted"].includes(mission.reviewAssignment?.status ?? ""),
+                )
+                .map((mission) => (
+                  <button
+                    key={mission.id}
+                    type="button"
+                    onClick={() => viewMission(mission.id)}
+                    className="rounded-full border border-primary/25 px-4 py-2 text-sm font-medium text-primary"
+                  >
+                    {mission.title} ·{" "}
+                    {mission.reviewAssignment?.status === "accepted"
+                      ? "Ready for decision"
+                      : "Awaiting acceptance"}
+                  </button>
+                ))}
+            </div>
+          </section>
+        )}
+
+      {userId &&
         (!wallet || wallet === ATLAS_ADMIN_WALLET || reviewConfig?.upgradeAuthority === wallet) && (
           <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1185,6 +1217,38 @@ function MissionsPage() {
                           Submit evidence on Solana
                         </ActionButton>
                       )}
+                    </div>
+                  )}
+                {selected.reviewAssignment &&
+                  ["assigned", "accepted"].includes(selected.reviewAssignment.status) &&
+                  ["Submitted", "Appealed"].includes(status) &&
+                  selected.reviewAssignment.reviewer_wallet !== wallet && (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+                      <p>
+                        This review is assigned to your account. Connect wallet{" "}
+                        {selected.reviewAssignment.reviewer_wallet.slice(0, 5)}…
+                        {selected.reviewAssignment.reviewer_wallet.slice(-5)} to continue.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="mt-2 font-semibold text-primary underline disabled:opacity-50"
+                        onClick={async () => {
+                          try {
+                            const address = await connectWallet();
+                            if (address && address !== selected.reviewAssignment?.reviewer_wallet)
+                              toast.error(
+                                "Switch your wallet to the assigned reviewer account, then connect again.",
+                              );
+                          } catch (e) {
+                            toast.error(
+                              e instanceof Error ? e.message : "Could not connect reviewer wallet",
+                            );
+                          }
+                        }}
+                      >
+                        Connect reviewer wallet
+                      </button>
                     </div>
                   )}
                 {selected.reviewAssignment?.reviewer_wallet === wallet &&
