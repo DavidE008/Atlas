@@ -1,5 +1,4 @@
 import type { PublicKey } from "@solana/web3.js";
-import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
 import { requireAuthenticatedWalletUser } from "./wallet-auth";
@@ -67,6 +66,9 @@ function concat(...parts: Uint8Array[]) {
   }
   return result;
 }
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 function intBytes(value: bigint, width: 8 | 16, signed = false) {
   const buffer = new ArrayBuffer(width);
   const view = new DataView(buffer);
@@ -113,7 +115,7 @@ async function sendInstruction(
   const instruction = new TransactionInstruction({
     programId,
     keys: keys.map((key) => ({ ...key })),
-    data: Buffer.from(ixData) as unknown as NonNullable<
+    data: ixData as unknown as NonNullable<
       ConstructorParameters<typeof TransactionInstruction>[0]["data"]
     >,
   });
@@ -138,7 +140,7 @@ async function missionAddress(
 ) {
   const sponsorKey = new PublicKeyCtor(sponsor);
   const [pda] = PublicKeyCtor.findProgramAddressSync(
-    [Buffer.from("mission"), sponsorKey.toBuffer(), Buffer.from(hexBytes(missionId))],
+    [new TextEncoder().encode("mission"), sponsorKey.toBuffer(), hexBytes(missionId)],
     new PublicKeyCtor(ATLAS_PROGRAM_ID),
   );
   return { pda, sponsorKey };
@@ -173,7 +175,7 @@ export async function createFundedMission(input: {
     ...result,
     missionId: mission.hex,
     missionAddress: pda.toBase58(),
-    termsHash: Buffer.from(termsHash).toString("hex"),
+    termsHash: bytesToHex(termsHash),
     rewardLamports: reward.toString(),
   };
 }
@@ -293,7 +295,7 @@ export async function submitMissionEvidence(input: {
     { pubkey: pda, isSigner: false, isWritable: true },
     { pubkey: publicKey, isSigner: true, isWritable: false },
   ]);
-  return { ...result, evidenceHash: Buffer.from(evidenceHash).toString("hex") };
+  return { ...result, evidenceHash: bytesToHex(evidenceHash) };
 }
 
 export async function resolveMission(input: {

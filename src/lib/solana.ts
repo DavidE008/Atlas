@@ -1,7 +1,6 @@
 // Solana browser wallet integration + devnet memo attestation.
 // Browser-only module — never import from server code.
 
-import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 import {
   getSolanaWalletProvider,
@@ -97,7 +96,7 @@ export async function attestReport(params: {
     new TransactionInstruction({
       keys: [],
       programId: memoProgramId,
-      data: Buffer.from(memo, "utf-8") as unknown as import("buffer").Buffer,
+      data: new TextEncoder().encode(memo) as unknown as import("buffer").Buffer,
     }),
   );
 

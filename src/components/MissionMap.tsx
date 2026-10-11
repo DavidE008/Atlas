@@ -64,8 +64,12 @@ export function MissionMap({
           if (!cancelled) setReady(true);
         });
         map.on("error", (event) => {
-          if (!cancelled && event.error?.message?.includes("401")) {
-            setError("Mapbox could not authorize this token. Check its URL restrictions.");
+          if (cancelled) return;
+          const mapError = event.error as (Error & { status?: number }) | undefined;
+          if (mapError?.status === 401 || mapError?.message?.includes("401")) {
+            setError("Mapbox rejected this token. Check that it is active and current.");
+          } else if (mapError?.status === 403 || mapError?.message?.includes("403")) {
+            setError("Mapbox denied this request. Check token scopes and allowed website URLs.");
           }
         });
         if (pickable) {

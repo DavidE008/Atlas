@@ -194,8 +194,7 @@ export const enrollAsReviewer = createServerFn({ method: "POST" })
 export const listMyReviewAssignments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const db = adminClient();
-    const { data, error } = await db
+    const { data, error } = await context.supabase
       .from("mission_review_assignments" as never)
       .select("mission_id, reviewer_wallet, review_round, status, deadline, tx_signature")
       .eq("reviewer_user_id" as never, context.userId as never)

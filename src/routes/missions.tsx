@@ -2,14 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrowUpRight,
-  BadgeCheck,
   Compass,
   Crosshair,
   ExternalLink,
   Loader2,
   MapPin,
   Plus,
-  ShieldCheck,
   Sparkles,
   Wallet,
   Wind,
@@ -42,9 +40,7 @@ import {
 } from "@/lib/atlas-missions";
 import { searchMapboxLocations, type MapboxLocationResult } from "@/lib/mapbox-location";
 import {
-  CATEGORY_COLORS,
   MISSION_CATEGORIES,
-  SPONSOR_CATEGORY_COLORS,
   missionCategoryColor,
   missionCategoryLabel,
   normalizeMissionCategory,
@@ -125,6 +121,7 @@ function MissionsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [assignmentLoadWarning, setAssignmentLoadWarning] = useState("");
   const [missions, setMissions] = useState<Mission[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
@@ -143,10 +140,42 @@ function MissionsPage() {
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const missionDetailsRef = useRef<HTMLElement>(null);
+  const missionDetailsCardRef = useRef<HTMLDivElement>(null);
+
+  const viewMission = (missionId: string) => {
+    setSelectedId(missionId);
+    requestAnimationFrame(() => {
+      missionDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const mission = missions.find((item) => item.id === missionId);
+      const card = missionDetailsCardRef.current;
+      if (!mission || !card || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+
+      card.getAnimations().forEach((animation) => animation.cancel());
+      const color = missionCategoryColor(mission.category, mission.category_color);
+      card.animate(
+        [
+          {
+            boxShadow: `0 0 0 0 color-mix(in srgb, ${color} 0%, transparent)`,
+          },
+          {
+            boxShadow: `0 0 0 5px color-mix(in srgb, ${color} 28%, transparent), 0 12px 28px color-mix(in srgb, ${color} 14%, transparent)`,
+          },
+          {
+            boxShadow: `0 0 0 0 color-mix(in srgb, ${color} 0%, transparent)`,
+          },
+        ],
+        { duration: 850, easing: "ease-out" },
+      );
+    });
+  };
 
   async function refresh() {
     setLoading(true);
     setLoadError("");
+    setAssignmentLoadWarning("");
     try {
       const { data: auth } = await supabase.auth.getUser();
       setUserId(auth.user?.id ?? null);
@@ -167,7 +196,17 @@ function MissionsPage() {
         .limit(60);
       if (error) throw error;
       const rows = (data ?? []) as Mission[];
-      const reviewerAssignments = auth.user ? await listMyReviewAssignments() : [];
+      let reviewerAssignments: Awaited<ReturnType<typeof listMyReviewAssignments>> = [];
+      if (auth.user) {
+        try {
+          reviewerAssignments = await listMyReviewAssignments();
+        } catch (error) {
+          console.error("Could not load this account’s reviewer assignments", error);
+          setAssignmentLoadWarning(
+            "Your reviewer queue could not be loaded. Mission browsing and funding are still available.",
+          );
+        }
+      }
       const assignmentsByMission = new Map(
         reviewerAssignments.map((assignment) => [assignment.mission_id, assignment]),
       );
@@ -768,14 +807,39 @@ function MissionsPage() {
         <Metric
           label="Completed & paid"
           value={loading ? "…" : loadError ? "Unavailable" : String(paid)}
-          icon={<BadgeCheck className="h-4 w-4" />}
+          icon={<SolanaMark className="h-4 w-5" />}
         />
         <Metric
           label="Program · Devnet"
           value={programStatus}
-          icon={<ShieldCheck className="h-4 w-4" />}
+          icon={<SolanaMark className="h-4 w-5" />}
         />
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <span>Mission data could not be loaded: {loadError}</span>
+          <button
+            type="button"
+            onClick={() => void refresh().catch(() => {})}
+            disabled={loading}
+            className="font-semibold underline underline-offset-2 disabled:opacity-50"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {assignmentLoadWarning && !loadError && (
+        <p
+          role="status"
+          className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          {assignmentLoadWarning}
+        </p>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -807,7 +871,7 @@ function MissionsPage() {
                 color: missionCategoryColor(mission.category, mission.category_color),
               }))}
               selectedId={selected?.id ?? null}
-              onSelect={setSelectedId}
+              onSelect={viewMission}
               className="absolute inset-0"
             />
             <div className="mission-map-location pointer-events-none absolute rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm">
@@ -830,7 +894,8 @@ function MissionsPage() {
             {filtered.map((m) => (
               <button
                 key={m.id}
-                onClick={() => setSelectedId(m.id)}
+                onClick={() => viewMission(m.id)}
+                aria-current={selected?.id === m.id ? "true" : undefined}
                 className={`rounded-xl border p-4 text-left transition hover:border-primary/60 ${selected?.id === m.id ? "border-primary/60 bg-primary/5" : "border-border bg-background/40"}`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -869,7 +934,8 @@ function MissionsPage() {
                 <div className="mt-4 flex items-center justify-between text-xs">
                   <span>{(Number(m.reward_lamports) / 1e9).toFixed(3)} SOL reward</span>
                   <span className="inline-flex items-center gap-1 text-primary">
-                    View mission <ArrowUpRight className="h-3 w-3" />
+                    {selected?.id === m.id ? "Viewing details" : "View mission"}
+                    <ArrowUpRight className="h-3 w-3" />
                   </span>
                 </div>
               </button>
@@ -877,9 +943,12 @@ function MissionsPage() {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside ref={missionDetailsRef} id="mission-details" className="space-y-4">
           {selected ? (
-            <div className="rounded-2xl border border-border bg-card p-5">
+            <div
+              ref={missionDetailsCardRef}
+              className="rounded-2xl border border-border bg-card p-5"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-xs uppercase tracking-[0.18em] text-primary">
                   {selected.neighborhood}
@@ -1090,7 +1159,8 @@ function MissionsPage() {
                 )}
                 {status === "Paid" && (
                   <p className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
-                    <BadgeCheck className="mr-2 inline h-4 w-4" /> Reviewed and paid on Solana
+                    <SolanaMark className="mr-2 inline h-4 w-5 align-[-3px]" /> Reviewed and paid on
+                    Solana
                   </p>
                 )}
                 {status === "Unavailable" && (
@@ -1109,7 +1179,7 @@ function MissionsPage() {
 
           <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <ShieldCheck className="h-4 w-4 text-primary" /> Trust model
+              <SolanaMark className="h-4 w-5" /> Trust model
             </div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
               Solana locks the reward and enforces who may claim, submit, and review. A person still
@@ -1147,6 +1217,17 @@ function Metric({ label, value, icon }: { label: string; value: string; icon: Re
         <strong className="text-sm">{value}</strong>
       </span>
     </div>
+  );
+}
+
+function SolanaMark({ className = "" }: { className?: string }) {
+  return (
+    <img
+      src="/solana-logo-mark.svg"
+      alt=""
+      aria-hidden="true"
+      className={`inline-block shrink-0 object-contain ${className}`}
+    />
   );
 }
 function StatusPill({ status }: { status: string }) {
@@ -1218,10 +1299,6 @@ function CreateMission({
   const [locationSearchBusy, setLocationSearchBusy] = useState(false);
   const [locationSourceNote, setLocationSourceNote] = useState("");
   const [missionCategory, setMissionCategory] = useState<MissionCategory>("environment");
-  const [customCategory, setCustomCategory] = useState("");
-  const [customCategoryColor, setCustomCategoryColor] = useState<string>(
-    SPONSOR_CATEGORY_COLORS[2].value,
-  );
   const [reward, setReward] = useState("0.05");
   const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1277,10 +1354,6 @@ function CreateMission({
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (missionCategory === "other" && !customCategory.trim()) {
-      toast.error("Add a name for your Other category.");
-      return;
-    }
     const authenticatedUserId = await requireAccount();
     if (!authenticatedUserId) return;
     setBusy(true);
@@ -1288,16 +1361,14 @@ function CreateMission({
       .map((v) => v.toString(16).padStart(2, "0"))
       .join("");
     const { submitBy, reviewBy } = getMissionDeadlines();
-    const categoryLabel = missionCategoryLabel(missionCategory, customCategory);
-    const categoryColor =
-      missionCategory === "other" ? customCategoryColor : CATEGORY_COLORS[missionCategory];
+    const categoryColor = missionCategoryColor(missionCategory);
     try {
       const walletAddress = await (await import("@/lib/atlas-missions")).connectMissionWallet();
       const terms = JSON.stringify({
         title,
         description,
         category: missionCategory,
-        customCategory: missionCategory === "other" ? categoryLabel : null,
+        customCategory: null,
         categoryColor,
         location: locationName,
         latitude: location.latitude,
@@ -1319,7 +1390,7 @@ function CreateMission({
           description,
           is_demo: isDemo,
           category: missionCategory,
-          custom_category: missionCategory === "other" ? categoryLabel : null,
+          custom_category: null,
           category_color: categoryColor,
           neighborhood: locationName,
           latitude: location.latitude,
@@ -1421,43 +1492,6 @@ function CreateMission({
               ))}
             </select>
           </Field>
-          {missionCategory === "other" && (
-            <div className="space-y-2 rounded-xl border border-border bg-background/60 p-3">
-              <Field label="Your category name">
-                <input
-                  required
-                  maxLength={40}
-                  value={customCategory}
-                  onChange={(event) => setCustomCategory(event.target.value)}
-                  placeholder="e.g. Waste Systems"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-                />
-              </Field>
-              <span className="block text-xs font-medium text-muted-foreground">
-                Category color
-              </span>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Category color">
-                {SPONSOR_CATEGORY_COLORS.map((swatch) => (
-                  <button
-                    key={swatch.value}
-                    type="button"
-                    aria-label={`${swatch.name} category color`}
-                    aria-pressed={customCategoryColor === swatch.value}
-                    title={swatch.name}
-                    onClick={() => setCustomCategoryColor(swatch.value)}
-                    className="h-8 w-8 rounded-full border-2 ring-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    style={{
-                      backgroundColor: swatch.value,
-                      borderColor: customCategoryColor === swatch.value ? "#173d31" : "white",
-                    }}
-                  />
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Your name and color appear on this mission’s card and map pin.
-              </p>
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Find the exact location">
               <div className="flex gap-2">

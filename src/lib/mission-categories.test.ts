@@ -12,13 +12,13 @@ describe("mission category presentation", () => {
     expect(missionCategoryLabel("cleanup")).toBe("Environment");
   });
 
-  it("shows sponsor-defined labels for Other", () => {
-    expect(missionCategoryLabel("other", "Waste Systems")).toBe("Waste Systems");
+  it("keeps every Other mission under the shared label", () => {
+    expect(missionCategoryLabel("other", "Waste Systems")).toBe("Other");
     expect(missionCategoryLabel("other")).toBe("Other");
   });
 
-  it("accepts valid hex colors and falls back for invalid values", () => {
-    expect(missionCategoryColor("other", "#C16A45")).toBe("#C16A45");
+  it("uses one fixed color per category even for legacy custom colors", () => {
+    expect(missionCategoryColor("other", "#C16A45")).toBe(CATEGORY_COLORS.other);
     expect(missionCategoryColor("community", "green")).toBe(CATEGORY_COLORS.community);
   });
 });
