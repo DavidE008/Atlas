@@ -5,7 +5,7 @@ const HOUSTON: [number, number] = [-95.3698, 29.7604];
 const ACCESS_TOKEN = import.meta.env["VITE_MAPBOX_ACCESS_TOKEN"];
 
 export type MapCoordinate = { latitude: number; longitude: number };
-export type MissionMapPoint = MapCoordinate & { id: string; label: string };
+export type MissionMapPoint = MapCoordinate & { id: string; label: string; color?: string };
 
 export function MissionMap({
   points = [],
@@ -127,6 +127,7 @@ export function MissionMap({
         const element = document.createElement("button");
         element.type = "button";
         element.className = `atlas-map-pin${point.id === selectedId ? " is-selected" : ""}`;
+        if (point.color) element.style.setProperty("--mission-category-color", point.color);
         element.setAttribute("aria-label", `View mission: ${point.label}`);
         element.title = point.label;
         element.addEventListener("click", () => onSelectRef.current?.(point.id));

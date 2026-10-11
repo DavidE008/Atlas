@@ -35,6 +35,15 @@ import {
   submitMissionEvidence,
 } from "@/lib/atlas-missions";
 import { searchMapboxLocations, type MapboxLocationResult } from "@/lib/mapbox-location";
+import {
+  CATEGORY_COLORS,
+  MISSION_CATEGORIES,
+  SPONSOR_CATEGORY_COLORS,
+  missionCategoryColor,
+  missionCategoryLabel,
+  normalizeMissionCategory,
+  type MissionCategory,
+} from "@/lib/mission-categories";
 
 type Mission = {
   id: string;
@@ -49,6 +58,8 @@ type Mission = {
   description: string;
   is_demo: boolean;
   category: string;
+  custom_category: string | null;
+  category_color: string;
   neighborhood: string;
   latitude: number;
   longitude: number;
@@ -67,7 +78,12 @@ type Mission = {
     tx_signature: string;
   } | null;
 };
-const CATEGORIES = ["All missions", "Cleanup"] as const;
+const CATEGORY_FILTERS = [
+  { key: "all", label: "All missions" },
+  { key: "environment", label: "Environment" },
+  { key: "community", label: "Community" },
+  { key: "other", label: "Other" },
+] as const;
 
 export const Route = createFileRoute("/missions")({
   head: () => ({
@@ -90,7 +106,7 @@ function MissionsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wallet, setWallet] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("All missions");
+  const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]["key"]>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [programStatus, setProgramStatus] = useState("Checking");
@@ -190,7 +206,10 @@ function MissionsPage() {
     return () => window.clearInterval(timer);
   }, []);
   const filtered = useMemo(
-    () => missions.filter((m) => category === "All missions" || m.category === "cleanup"),
+    () =>
+      missions.filter(
+        (m) => category === "all" || normalizeMissionCategory(m.category) === category,
+      ),
     [missions, category],
   );
   const selected = missions.find((m) => m.id === selectedId) ?? filtered[0] ?? null;
@@ -379,7 +398,7 @@ function MissionsPage() {
             Find your next mission.
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Find a nearby cleanup, see its reward held in escrow, and follow the work from claim
+            Find a local mission, see its reward held in escrow, and follow the work from claim
             through review.
           </p>
         </div>
@@ -461,6 +480,7 @@ function MissionsPage() {
                 label: mission.title,
                 latitude: mission.latitude,
                 longitude: mission.longitude,
+                color: missionCategoryColor(mission.category, mission.category_color),
               }))}
               selectedId={selected?.id ?? null}
               onSelect={setSelectedId}
@@ -472,13 +492,13 @@ function MissionsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 border-t border-border p-3">
-            {CATEGORIES.map((item) => (
+            {CATEGORY_FILTERS.map((item) => (
               <button
-                key={item}
-                onClick={() => setCategory(item)}
-                className={`rounded-full px-3 py-1.5 text-xs ${category === item ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+                key={item.key}
+                onClick={() => setCategory(item.key)}
+                className={`rounded-full px-3 py-1.5 text-xs ${category === item.key ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
               >
-                {item}
+                {item.label}
               </button>
             ))}
           </div>
@@ -506,6 +526,19 @@ function MissionsPage() {
                   </div>
                 </div>
                 <p className="mt-2 font-semibold">{m.title}</p>
+                <span
+                  className="mission-category mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                  style={
+                    {
+                      "--mission-category-color": missionCategoryColor(
+                        m.category,
+                        m.category_color,
+                      ),
+                    } as React.CSSProperties
+                  }
+                >
+                  {missionCategoryLabel(m.category, m.custom_category)}
+                </span>
                 <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                   {m.description}
                 </p>
@@ -533,13 +566,26 @@ function MissionsPage() {
                 </div>
               </div>
               <h2 className="mt-3 text-2xl font-bold">{selected.title}</h2>
+              <span
+                className="mission-category mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                style={
+                  {
+                    "--mission-category-color": missionCategoryColor(
+                      selected.category,
+                      selected.category_color,
+                    ),
+                  } as React.CSSProperties
+                }
+              >
+                {missionCategoryLabel(selected.category, selected.custom_category)}
+              </span>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {selected.description}
               </p>
               {selected.is_demo && (
                 <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
                   Devnet demonstration example. This record does not claim verified real-world
-                  cleanup.
+                  impact.
                 </p>
               )}
               <div className="my-5 grid grid-cols-2 gap-3">
@@ -590,7 +636,7 @@ function MissionsPage() {
                 )}
                 {status === "Funded" && selected.sponsor_wallet !== wallet && (
                   <ActionButton busy={busy} onClick={doClaim}>
-                    Claim this cleanup
+                    Claim this mission
                   </ActionButton>
                 )}
                 {status === "Claimed" &&
@@ -690,8 +736,8 @@ function MissionsPage() {
             </div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
               Solana locks the reward and enforces who may claim, submit, and review. A person still
-              judges the cleanup. The evidence hash protects the submitted record; it does not prove
-              the physical work happened.
+              reviews the work. The evidence hash protects the submitted record; it does not prove
+              the task was completed in the physical world.
             </p>
           </div>
           <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
@@ -795,6 +841,11 @@ function CreateMission({
   const [locationSearchBusy, setLocationSearchBusy] = useState(false);
   const [locationSourceNote, setLocationSourceNote] = useState("");
   const [reviewer, setReviewer] = useState("");
+  const [missionCategory, setMissionCategory] = useState<MissionCategory>("environment");
+  const [customCategory, setCustomCategory] = useState("");
+  const [customCategoryColor, setCustomCategoryColor] = useState<string>(
+    SPONSOR_CATEGORY_COLORS[2].value,
+  );
   const [reward, setReward] = useState("0.05");
   const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -850,6 +901,10 @@ function CreateMission({
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (missionCategory === "other" && !customCategory.trim()) {
+      toast.error("Add a name for your Other category.");
+      return;
+    }
     const authenticatedUserId = await requireAccount();
     if (!authenticatedUserId) return;
     setBusy(true);
@@ -857,11 +912,17 @@ function CreateMission({
       .map((v) => v.toString(16).padStart(2, "0"))
       .join("");
     const { submitBy, reviewBy } = getMissionDeadlines();
+    const categoryLabel = missionCategoryLabel(missionCategory, customCategory);
+    const categoryColor =
+      missionCategory === "other" ? customCategoryColor : CATEGORY_COLORS[missionCategory];
     try {
       const walletAddress = await (await import("@/lib/atlas-missions")).connectMissionWallet();
       const terms = JSON.stringify({
         title,
         description,
+        category: missionCategory,
+        customCategory: missionCategory === "other" ? categoryLabel : null,
+        categoryColor,
         location: locationName,
         latitude: location.latitude,
         longitude: location.longitude,
@@ -882,7 +943,9 @@ function CreateMission({
           title,
           description,
           is_demo: isDemo,
-          category: "cleanup",
+          category: missionCategory,
+          custom_category: missionCategory === "other" ? categoryLabel : null,
+          category_color: categoryColor,
           neighborhood: locationName,
           latitude: location.latitude,
           longitude: location.longitude,
@@ -934,7 +997,7 @@ function CreateMission({
           <div>
             <p className="text-xs uppercase tracking-widest text-primary">New field mission</p>
             <h2 id="fund-title" className="mt-1 text-xl font-bold">
-              Fund a local cleanup
+              Fund a local mission
             </h2>
           </div>
           <button
@@ -972,6 +1035,56 @@ function CreateMission({
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </Field>
+          <Field label="Mission category">
+            <select
+              value={missionCategory}
+              onChange={(event) => setMissionCategory(event.target.value as MissionCategory)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+            >
+              {MISSION_CATEGORIES.map((item) => (
+                <option key={item} value={item}>
+                  {missionCategoryLabel(item)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {missionCategory === "other" && (
+            <div className="space-y-2 rounded-xl border border-border bg-background/60 p-3">
+              <Field label="Your category name">
+                <input
+                  required
+                  maxLength={40}
+                  value={customCategory}
+                  onChange={(event) => setCustomCategory(event.target.value)}
+                  placeholder="e.g. Waste Systems"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+              </Field>
+              <span className="block text-xs font-medium text-muted-foreground">
+                Category color
+              </span>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Category color">
+                {SPONSOR_CATEGORY_COLORS.map((swatch) => (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    aria-label={`${swatch.name} category color`}
+                    aria-pressed={customCategoryColor === swatch.value}
+                    title={swatch.name}
+                    onClick={() => setCustomCategoryColor(swatch.value)}
+                    className="h-8 w-8 rounded-full border-2 ring-offset-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    style={{
+                      backgroundColor: swatch.value,
+                      borderColor: customCategoryColor === swatch.value ? "#173d31" : "white",
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Your name and color appear on this mission’s card and map pin.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Find the exact location">
               <div className="flex gap-2">
@@ -1100,7 +1213,7 @@ function CreateMission({
             />
             <span>
               <strong className="text-foreground">Devnet demo example.</strong> This mission uses
-              sample details and must not be presented as verified real-world environmental work.
+              sample details and must not be presented as verified real-world impact.
             </span>
           </label>
           <button

@@ -89,8 +89,10 @@ export type Database = {
       missions: {
         Row: {
           category: string
+          category_color: string
           created_at: string
           created_by: string
+          custom_category: string | null
           description: string
           id: string
           is_demo: boolean
@@ -112,8 +114,10 @@ export type Database = {
         }
         Insert: {
           category?: string
+          category_color?: string
           created_at?: string
           created_by: string
+          custom_category?: string | null
           description: string
           id?: string
           is_demo?: boolean
@@ -135,8 +139,10 @@ export type Database = {
         }
         Update: {
           category?: string
+          category_color?: string
           created_at?: string
           created_by?: string
+          custom_category?: string | null
           description?: string
           id?: string
           is_demo?: boolean
