@@ -16,6 +16,7 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { connectWallet } from "@/lib/solana";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { ProfileCameraCapture } from "@/components/ProfileCameraCapture";
 import {
   getSelectedSolanaWalletProviderId,
   listSolanaWalletProviders,
@@ -50,8 +51,8 @@ function SettingsPage() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const libraryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -189,7 +190,6 @@ function SettingsPage() {
     } finally {
       setBusy("");
       if (libraryInputRef.current) libraryInputRef.current.value = "";
-      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
   }
 
@@ -323,15 +323,6 @@ function SettingsPage() {
                 onChange={onPhotoSelected}
                 aria-label="Choose a profile photo from your library"
               />
-              <input
-                ref={cameraInputRef}
-                className="profile-photo-input"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="user"
-                onChange={onPhotoSelected}
-                aria-label="Take a profile photo"
-              />
               <div className="profile-photo-actions">
                 <button
                   className="button-secondary"
@@ -349,7 +340,7 @@ function SettingsPage() {
                 <button
                   className="button-secondary"
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => setCameraOpen(true)}
                   disabled={busy === "avatar"}
                 >
                   <Camera size={16} /> Take a photo
@@ -570,6 +561,15 @@ function SettingsPage() {
           </p>
         </section>
       </div>
+      {cameraOpen && (
+        <ProfileCameraCapture
+          onClose={() => setCameraOpen(false)}
+          onCapture={(file) => {
+            setCameraOpen(false);
+            void setProfilePhoto(file);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -717,6 +717,106 @@ em {
 .profile-photo-default:disabled {
   opacity: 0.45;
 }
+.profile-camera-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid #dfe6d9;
+  border-radius: 18px;
+  background: #fffefa;
+  color: #173d2f;
+  box-shadow: 0 24px 80px #102a2033;
+}
+.profile-camera-dialog::backdrop {
+  background: #102a207a;
+  backdrop-filter: blur(4px);
+}
+.profile-camera-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.profile-camera-heading h2 {
+  margin: 5px 0 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+.profile-camera-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #dfe6d9;
+  border-radius: 50%;
+  color: #31553b;
+}
+.profile-camera-help {
+  margin: 10px 0 16px;
+  color: #72786f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.profile-camera-preview {
+  position: relative;
+  display: grid;
+  min-height: 220px;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 12px;
+  background: #132a20;
+}
+.profile-camera-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.profile-camera-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #132a20d9;
+  color: white;
+  font-size: 13px;
+}
+.profile-camera-error {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid #ffbdb1;
+  border-radius: 9px;
+  background: #fff8f5;
+  color: #a53529;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.profile-camera-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 16px;
+}
+.profile-camera-actions .button-primary {
+  gap: 9px;
+  padding: 12px 17px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+.profile-camera-actions .button-secondary {
+  padding: 11px 15px;
+}
 .settings-card .atlas-form {
   gap: 14px;
 }
