@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CompassScene } from "@/components/CompassScene";
 
@@ -102,7 +102,8 @@ function AuthPage() {
         </div>
         <CompassScene compact />
         <p className="auth-story-foot">
-          <ShieldCheck size={18} /> Purpose you can see. Rewards you can follow.
+          <img src="/solana-logo-mark.svg" alt="Solana" width="20" height="18" />
+          Purpose you can see. Rewards you can follow.
         </p>
       </aside>
       <section className="auth-panel">

@@ -412,6 +412,12 @@ em {
   background: #faf8f1ce;
   border-radius: 30px;
 }
+.auth-story-foot img {
+  display: block;
+  width: 20px;
+  height: 18px;
+  flex: 0 0 auto;
+}
 .auth-panel {
   display: flex;
   align-items: center;
