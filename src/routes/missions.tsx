@@ -1049,32 +1049,53 @@ function MissionsPage() {
                     Draft saved. Finish wallet funding to publish this mission.
                   </p>
                 )}
-                {status === "Funded" && selected.sponsor_wallet !== wallet && (
-                  <ActionButton busy={busy} onClick={doClaim}>
-                    Claim this mission
-                  </ActionButton>
-                )}
-                {status === "Claimed" &&
+                {["Funded", "Claimed"].includes(status) &&
                   selected.sponsor_wallet !== wallet &&
-                  !!userId &&
                   !selected.submission && (
-                    <div className="space-y-2">
-                      <textarea
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        placeholder="Describe what you completed and what the photos show"
-                        rows={3}
-                        className="w-full rounded-xl border border-border bg-background p-3 text-sm"
-                      />
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-                        className="w-full text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-foreground"
-                      />
-                      <ActionButton busy={busy} onClick={doSubmit}>
-                        Submit evidence on Solana
-                      </ActionButton>
+                    <div className="space-y-3">
+                      {status === "Funded" && (
+                        <p className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs text-muted-foreground">
+                          Start an evidence draft now, then claim the mission. Your note and photos
+                          stay private until you submit the completed work for review.
+                        </p>
+                      )}
+                      <label className="block space-y-1.5 text-sm">
+                        <span className="font-medium">
+                          {status === "Funded" ? "Evidence note (draft)" : "Evidence note"}
+                        </span>
+                        <textarea
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          placeholder="Describe what you completed and what the photos show"
+                          rows={3}
+                          className="w-full rounded-xl border border-border bg-background p-3 text-sm"
+                        />
+                      </label>
+                      <label className="block space-y-1.5 text-sm">
+                        <span className="font-medium">
+                          Photos {status === "Funded" ? "(draft)" : "for the reviewer"}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+                          className="w-full text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-foreground"
+                        />
+                        {photo && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            Selected: {photo.name}
+                          </span>
+                        )}
+                      </label>
+                      {status === "Funded" ? (
+                        <ActionButton busy={busy} onClick={doClaim}>
+                          Claim mission
+                        </ActionButton>
+                      ) : (
+                        <ActionButton busy={busy} onClick={doSubmit}>
+                          Submit evidence on Solana
+                        </ActionButton>
+                      )}
                     </div>
                   )}
                 {selected.reviewAssignment?.reviewer_wallet === wallet &&

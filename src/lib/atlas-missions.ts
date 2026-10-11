@@ -66,6 +66,9 @@ function concat(...parts: Uint8Array[]) {
   }
   return result;
 }
+function messageOf(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -106,11 +109,12 @@ async function sha256(value: Uint8Array | string) {
 async function sendInstruction(
   ixData: Uint8Array,
   keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[],
+  connectedWallet?: { provider: Awaited<ReturnType<typeof getWallet>>; publicKey: PublicKey },
 ) {
   const { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } =
     await loadSdk();
-  const provider = await getWallet();
-  const { publicKey } = await provider.connect();
+  const provider = connectedWallet?.provider ?? (await getWallet());
+  const publicKey = connectedWallet?.publicKey ?? (await provider.connect()).publicKey;
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
   const instruction = new TransactionInstruction({
     programId,
@@ -122,8 +126,34 @@ async function sendInstruction(
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const latest = await connection.getLatestBlockhash("confirmed");
   const tx = new Transaction({ feePayer: publicKey, ...latest }).add(instruction);
-  const { signature } = await provider.signAndSendTransaction(tx);
-  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  let signature: string;
+  try {
+    ({ signature } = await provider.signAndSendTransaction(tx));
+  } catch (error) {
+    throw new Error(
+      `Wallet could not send this Devnet transaction. Check that the wallet is set to Solana Devnet and the selected account has Devnet SOL. ${messageOf(error)}`,
+    );
+  }
+  const confirmation = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  if (confirmation.value.err) {
+    let usefulLogs: string[] = [];
+    try {
+      const transaction = await connection.getTransaction(signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      usefulLogs =
+        transaction?.meta?.logMessages?.filter((line) =>
+          /error|failed|custom program/i.test(line),
+        ) ?? [];
+    } catch {
+      // Keep the confirmed execution error if log retrieval is temporarily unavailable.
+    }
+    const reason = usefulLogs.slice(-3).join(" · ");
+    throw new Error(
+      `Solana rejected this transaction${reason ? `: ${reason}` : ` (${JSON.stringify(confirmation.value.err)})`}. Signature: ${signature}`,
+    );
+  }
   return {
     signature,
     wallet: publicKey.toBase58(),
@@ -274,11 +304,19 @@ export async function claimMission(input: { sponsorWallet: string; missionId: st
   const { PublicKey } = await loadSdk();
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
+  if (publicKey.toBase58() === input.sponsorWallet)
+    throw new Error(
+      "The sponsor cannot claim this mission. Switch to a different participant wallet.",
+    );
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
-  return sendInstruction(IX.claim, [
-    { pubkey: pda, isSigner: false, isWritable: true },
-    { pubkey: publicKey, isSigner: true, isWritable: true },
-  ]);
+  return sendInstruction(
+    IX.claim,
+    [
+      { pubkey: pda, isSigner: false, isWritable: true },
+      { pubkey: publicKey, isSigner: true, isWritable: true },
+    ],
+    { provider, publicKey },
+  );
 }
 
 export async function submitMissionEvidence(input: {
