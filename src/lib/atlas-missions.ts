@@ -2,19 +2,21 @@ import type { PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
+import { requireAuthenticatedWalletUser } from "./wallet-auth";
 
 export const ATLAS_PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
 
-function getWallet() {
+async function getWallet() {
+  await requireAuthenticatedWalletUser();
   const provider = getSolanaWalletProvider();
   if (!provider) throw new Error(missingSolanaWalletMessage());
   return provider;
 }
 
 export async function connectMissionWallet() {
-  const { publicKey } = await getWallet().connect();
+  const { publicKey } = await (await getWallet()).connect();
   return publicKey.toBase58();
 }
 
@@ -46,7 +48,10 @@ const IX = {
 function concat(...parts: Uint8Array[]) {
   const result = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let offset = 0;
-  for (const part of parts) { result.set(part, offset); offset += part.length; }
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
   return result;
 }
 function intBytes(value: bigint, width: 8 | 16, signed = false) {
@@ -55,11 +60,13 @@ function intBytes(value: bigint, width: 8 | 16, signed = false) {
   if (width === 8) {
     if (signed) view.setBigInt64(0, value, true);
     else view.setBigUint64(0, value, true);
-  }
-  else {
+  } else {
     if (value < 0n || value >= 1n << 128n) throw new Error("Invalid mission identifier.");
     let remaining = value;
-    for (let i = 0; i < 16; i++) { view.setUint8(i, Number(remaining & 255n)); remaining >>= 8n; }
+    for (let i = 0; i < 16; i++) {
+      view.setUint8(i, Number(remaining & 255n));
+      remaining >>= 8n;
+    }
   }
   return new Uint8Array(buffer);
 }
@@ -69,7 +76,8 @@ function hexBytes(hex: string) {
 }
 function solToLamports(value: string) {
   const [whole = "", fraction = ""] = value.trim().split(".");
-  if (!/^\d+$/.test(whole) || !/^\d{0,9}$/.test(fraction)) throw new Error("Enter a SOL reward with up to nine decimal places.");
+  if (!/^\d+$/.test(whole) || !/^\d{0,9}$/.test(fraction))
+    throw new Error("Enter a SOL reward with up to nine decimal places.");
   const lamports = BigInt(whole) * 1_000_000_000n + BigInt((fraction + "000000000").slice(0, 9));
   if (lamports <= 0n) throw new Error("The reward must be greater than zero.");
   return lamports;
@@ -80,24 +88,41 @@ async function sha256(value: Uint8Array | string) {
   copy.set(bytes);
   return new Uint8Array(await crypto.subtle.digest("SHA-256", copy.buffer));
 }
-async function sendInstruction(ixData: Uint8Array, keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]) {
-  const { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } = await loadSdk();
-  const provider = getWallet();
+async function sendInstruction(
+  ixData: Uint8Array,
+  keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[],
+) {
+  const { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } =
+    await loadSdk();
+  const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
   const instruction = new TransactionInstruction({
     programId,
     keys: keys.map((key) => ({ ...key })),
-    data: Buffer.from(ixData) as unknown as NonNullable<ConstructorParameters<typeof TransactionInstruction>[0]["data"]>,
+    data: Buffer.from(ixData) as unknown as NonNullable<
+      ConstructorParameters<typeof TransactionInstruction>[0]["data"]
+    >,
   });
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const latest = await connection.getLatestBlockhash("confirmed");
   const tx = new Transaction({ feePayer: publicKey, ...latest }).add(instruction);
   const { signature } = await provider.signAndSendTransaction(tx);
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-  return { signature, wallet: publicKey.toBase58(), PublicKey, SystemProgram, connection, programId };
+  return {
+    signature,
+    wallet: publicKey.toBase58(),
+    PublicKey,
+    SystemProgram,
+    connection,
+    programId,
+  };
 }
-async function missionAddress(PublicKeyCtor: typeof import("@solana/web3.js").PublicKey, sponsor: string, missionId: string) {
+async function missionAddress(
+  PublicKeyCtor: typeof import("@solana/web3.js").PublicKey,
+  sponsor: string,
+  missionId: string,
+) {
   const sponsorKey = new PublicKeyCtor(sponsor);
   const [pda] = PublicKeyCtor.findProgramAddressSync(
     [Buffer.from("mission"), sponsorKey.toBuffer(), Buffer.from(hexBytes(missionId))],
@@ -115,26 +140,40 @@ export async function createFundedMission(input: {
   terms: string;
 }) {
   const { PublicKey, SystemProgram } = await loadSdk();
-  const provider = getWallet();
+  const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const reviewer = new PublicKey(input.reviewerWallet);
   const mission = { hex: input.missionId.toLowerCase(), bytes: hexBytes(input.missionId) };
   const reward = solToLamports(input.rewardSol);
   const termsHash = await sha256(input.terms);
   const { pda } = await missionAddress(PublicKey, publicKey.toBase58(), mission.hex);
-  const data = concat(IX.create, mission.bytes, termsHash, intBytes(reward, 8), intBytes(BigInt(input.submitBy), 8, true), intBytes(BigInt(input.reviewBy), 8, true));
+  const data = concat(
+    IX.create,
+    mission.bytes,
+    termsHash,
+    intBytes(reward, 8),
+    intBytes(BigInt(input.submitBy), 8, true),
+    intBytes(BigInt(input.reviewBy), 8, true),
+  );
   const result = await sendInstruction(data, [
     { pubkey: publicKey, isSigner: true, isWritable: true },
     { pubkey: reviewer, isSigner: false, isWritable: false },
     { pubkey: pda, isSigner: false, isWritable: true },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ]);
-  return { ...result, missionId: mission.hex, missionAddress: pda.toBase58(), termsHash: Buffer.from(termsHash).toString("hex"), rewardLamports: reward.toString() };
+  return {
+    ...result,
+    missionId: mission.hex,
+    missionAddress: pda.toBase58(),
+    termsHash: Buffer.from(termsHash).toString("hex"),
+    rewardLamports: reward.toString(),
+  };
 }
 
 export async function claimMission(input: { sponsorWallet: string; missionId: string }) {
   const { PublicKey } = await loadSdk();
-  const provider = getWallet(); const { publicKey } = await provider.connect();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(IX.claim, [
     { pubkey: pda, isSigner: false, isWritable: true },
@@ -142,9 +181,14 @@ export async function claimMission(input: { sponsorWallet: string; missionId: st
   ]);
 }
 
-export async function submitMissionEvidence(input: { sponsorWallet: string; missionId: string; evidence: string }) {
+export async function submitMissionEvidence(input: {
+  sponsorWallet: string;
+  missionId: string;
+  evidence: string;
+}) {
   const { PublicKey } = await loadSdk();
-  const provider = getWallet(); const { publicKey } = await provider.connect();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   const evidenceHash = await sha256(input.evidence);
   const result = await sendInstruction(concat(IX.submit, evidenceHash), [
@@ -154,9 +198,15 @@ export async function submitMissionEvidence(input: { sponsorWallet: string; miss
   return { ...result, evidenceHash: Buffer.from(evidenceHash).toString("hex") };
 }
 
-export async function resolveMission(input: { sponsorWallet: string; missionId: string; participantWallet: string; approve: boolean }) {
+export async function resolveMission(input: {
+  sponsorWallet: string;
+  missionId: string;
+  participantWallet: string;
+  approve: boolean;
+}) {
   const { PublicKey } = await loadSdk();
-  const provider = getWallet(); const { publicKey } = await provider.connect();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(concat(IX.resolve, new Uint8Array([input.approve ? 1 : 0])), [
     { pubkey: pda, isSigner: false, isWritable: true },
@@ -168,7 +218,8 @@ export async function resolveMission(input: { sponsorWallet: string; missionId: 
 
 export async function refundMission(input: { sponsorWallet: string; missionId: string }) {
   const { PublicKey } = await loadSdk();
-  const provider = getWallet(); const { publicKey } = await provider.connect();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(IX.refund, [
     { pubkey: pda, isSigner: false, isWritable: true },
@@ -181,7 +232,8 @@ export async function readMissionStatus(address: string) {
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const account = await connection.getAccountInfo(new PublicKey(address), "confirmed");
   if (!account) return null;
-  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 220) throw new Error("Mission account is not owned by the Atlas program.");
+  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 220)
+    throw new Error("Mission account is not owned by the Atlas program.");
   const status = account.data[218]!;
   return (["Funded", "Claimed", "Submitted", "Paid", "Rejected"] as const)[status] ?? null;
 }

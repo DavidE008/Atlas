@@ -190,7 +190,21 @@ function MissionsPage() {
     ),
   ).length;
   const paid = missions.filter((m) => m.chainStatus === "Paid").length;
-  const connectWallet = async () => {
+  const requireWalletAccount = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data.user) {
+      setUserId(data.user.id);
+      return data.user.id;
+    }
+    setWallet(null);
+    toast.info("Create an Atlas account or sign in before connecting a wallet.");
+    void navigate({ to: "/auth", search: { mode: "signup" } });
+    return null;
+  };
+
+  const connectWallet = async (authenticatedUserId?: string) => {
+    const accountId = authenticatedUserId ?? (await requireWalletAccount());
+    if (!accountId) return null;
     const publicKey = await (await import("@/lib/atlas-missions")).connectMissionWallet();
     setWallet(publicKey);
     return publicKey;
@@ -198,6 +212,7 @@ function MissionsPage() {
 
   const doClaim = async () => {
     if (!selected) return;
+    if (!(await requireWalletAccount())) return;
     setBusy(true);
     try {
       const result = await claimMission({
@@ -215,11 +230,14 @@ function MissionsPage() {
   };
 
   const doSubmit = async () => {
-    if (!selected || !userId || !note.trim()) return;
+    if (!selected || !note.trim()) return;
+    const authenticatedUserId = await requireWalletAccount();
+    if (!authenticatedUserId) return;
     setBusy(true);
     let uploadedPath: string | null = null;
     try {
-      const participantWallet = await connectWallet();
+      const participantWallet = await connectWallet(authenticatedUserId);
+      if (!participantWallet) return;
       let photoDigest = "no-photo";
       if (photo) {
         if (
@@ -229,7 +247,7 @@ function MissionsPage() {
           throw new Error("Choose a JPG, PNG, or WebP photo under 10 MB.");
         const bytes = new Uint8Array(await photo.arrayBuffer());
         photoDigest = await digest(bytes);
-        uploadedPath = `${userId}/${selected.id}/${crypto.randomUUID()}.${photo.name.split(".").pop() ?? "jpg"}`;
+        uploadedPath = `${authenticatedUserId}/${selected.id}/${crypto.randomUUID()}.${photo.name.split(".").pop() ?? "jpg"}`;
         const { error } = await supabase.storage
           .from("mission-evidence")
           .upload(uploadedPath, photo, { upsert: false, contentType: photo.type });
@@ -249,7 +267,7 @@ function MissionsPage() {
       });
       const { error } = await supabase.from("mission_submissions").insert({
         mission_id: selected.id,
-        user_id: userId,
+        user_id: authenticatedUserId,
         participant_wallet: participantWallet,
         note: note.trim(),
         evidence_hash: result.evidenceHash,
@@ -287,6 +305,7 @@ function MissionsPage() {
 
   const doResolve = async (approve: boolean) => {
     if (!selected?.submission) return;
+    if (!(await requireWalletAccount())) return;
     setBusy(true);
     try {
       const result = await resolveMission({
@@ -314,6 +333,7 @@ function MissionsPage() {
 
   const doRefund = async () => {
     if (!selected) return;
+    if (!(await requireWalletAccount())) return;
     setBusy(true);
     try {
       const result = await refundMission({
@@ -354,6 +374,7 @@ function MissionsPage() {
             onClick={async () => {
               try {
                 const address = await connectWallet();
+                if (!address) return;
                 toast.success("Connected " + address.slice(0, 4) + "…" + address.slice(-4));
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Wallet connection failed");
@@ -362,7 +383,11 @@ function MissionsPage() {
             className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium hover:border-primary/50"
           >
             <Wallet className="h-4 w-4 text-primary" />{" "}
-            {wallet ? wallet.slice(0, 4) + "…" + wallet.slice(-4) : "Connect wallet"}
+            {wallet
+              ? wallet.slice(0, 4) + "…" + wallet.slice(-4)
+              : userId
+                ? "Connect wallet"
+                : "Sign in to connect"}
           </button>
           <button
             onClick={() =>
@@ -701,8 +726,9 @@ function MissionsPage() {
       </div>
       {showCreate && (
         <CreateMission
-          onClose={() => setShowCreate(false)}
           userId={userId}
+          onClose={() => setShowCreate(false)}
+          requireAccount={requireWalletAccount}
           onCreated={async () => {
             setShowCreate(false);
             await refresh();
@@ -765,10 +791,12 @@ function ActionButton({
 
 function CreateMission({
   userId,
+  requireAccount,
   onClose,
   onCreated,
 }: {
   userId: string | null;
+  requireAccount: () => Promise<string | null>;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
@@ -787,10 +815,8 @@ function CreateMission({
   const [busy, setBusy] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!userId) {
-      toast.error("Sign in before funding a mission");
-      return;
-    }
+    const authenticatedUserId = await requireAccount();
+    if (!authenticatedUserId) return;
     setBusy(true);
     const missionId = [...crypto.getRandomValues(new Uint8Array(16))]
       .map((v) => v.toString(16).padStart(2, "0"))
@@ -813,7 +839,7 @@ function CreateMission({
       const { data: draft, error } = await supabase
         .from("missions")
         .insert({
-          created_by: userId,
+          created_by: authenticatedUserId,
           mission_key: missionId,
           sponsor_wallet: walletAddress,
           reviewer_wallet: reviewer,

@@ -8,6 +8,7 @@ import {
   missingSolanaWalletMessage,
   selectSolanaWalletProvider,
 } from "./solana-wallet-provider";
+import { requireAuthenticatedWalletUser } from "./wallet-auth";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
@@ -39,6 +40,7 @@ export function isSolanaWalletAvailable(): boolean {
 }
 
 export async function connectWallet(providerId?: string): Promise<string> {
+  await requireAuthenticatedWalletUser();
   if (providerId && !selectSolanaWalletProvider(providerId)) {
     throw new Error("That wallet is no longer available. Choose a detected wallet and try again.");
   }
@@ -53,6 +55,7 @@ export async function attestReport(params: {
   category: string;
   neighborhood: string | null;
 }): Promise<{ signature: string; wallet: string }> {
+  await requireAuthenticatedWalletUser();
   const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
   const wallet = getWallet();
   if (!wallet) throw new Error(missingSolanaWalletMessage());

@@ -215,8 +215,8 @@ function AuthPage() {
                 </Link>
               </p>
               <p className="form-help">
-                You can explore without a wallet. Connect one when you're ready to fund or take on a
-                mission.
+                Explore missions without a wallet. Create an Atlas account or sign in before
+                connecting one to fund or take on a mission.
               </p>
             </>
           )}
