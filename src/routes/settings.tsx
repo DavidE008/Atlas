@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { connectWallet } from "@/lib/solana";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { ProfileCameraCapture } from "@/components/ProfileCameraCapture";
+import { ProfilePhotoCrop } from "@/components/ProfilePhotoCrop";
 import {
   getSelectedSolanaWalletProviderId,
   listSolanaWalletProviders,
@@ -52,6 +53,7 @@ function SettingsPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -195,7 +197,17 @@ function SettingsPage() {
 
   function onPhotoSelected(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0] ?? null;
-    if (file) void setProfilePhoto(file);
+    if (file) {
+      clearFeedback();
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        setError("Choose a JPG, PNG, or WebP image.");
+      } else if (file.size > 5 * 1024 * 1024) {
+        setError("Choose an image under 5 MB.");
+      } else {
+        setCropFile(file);
+      }
+    }
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
   }
 
   async function saveEmail(event: FormEvent) {
@@ -566,6 +578,16 @@ function SettingsPage() {
           onClose={() => setCameraOpen(false)}
           onCapture={(file) => {
             setCameraOpen(false);
+            setCropFile(file);
+          }}
+        />
+      )}
+      {cropFile && (
+        <ProfilePhotoCrop
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onSave={(file) => {
+            setCropFile(null);
             void setProfilePhoto(file);
           }}
         />
