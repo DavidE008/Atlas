@@ -30,7 +30,6 @@ import {
   claimMission,
   createFundedMission,
   isAtlasProgramDeployed,
-  readMissionStatus,
   readMissionConfig,
   refundMission,
   initializeMissionConfig,
@@ -40,6 +39,7 @@ import {
   submitMissionEvidence,
 } from "@/lib/atlas-missions";
 import { searchMapboxLocations, type MapboxLocationResult } from "@/lib/mapbox-location";
+import { readMissionStatuses } from "@/lib/mission-status.functions";
 import {
   MISSION_CATEGORIES,
   missionCategoryColor,
@@ -213,18 +213,21 @@ function MissionsPage() {
       const assignmentsByMission = new Map(
         reviewerAssignments.map((assignment) => [assignment.mission_id, assignment]),
       );
-      const withStatus = await Promise.all(
-        rows
-          .filter((m) => m.mission_address)
-          .map(async (m) => {
-            try {
-              const onChainStatus = await readMissionStatus(m.mission_address!);
-              return { ...m, chainStatus: onChainStatus ?? m.settlement_status ?? "Unavailable" };
-            } catch {
-              return { ...m, chainStatus: m.settlement_status ?? "Unavailable" };
-            }
-          }),
-      );
+      const chainRows = rows.filter((m) => m.mission_address);
+      let chainStatuses: Awaited<ReturnType<typeof readMissionStatuses>> = [];
+      try {
+        chainStatuses = await readMissionStatuses({
+          data: { addresses: chainRows.map((m) => m.mission_address!) },
+        });
+      } catch {
+        toast.error("Devnet status could not be refreshed. Try Refresh chain again.");
+      }
+      const statusByAddress = new Map(chainStatuses.map((item) => [item.address, item.status]));
+      const withStatus = chainRows.map((m) => ({
+        ...m,
+        chainStatus:
+          statusByAddress.get(m.mission_address!) ?? m.settlement_status ?? "Unavailable",
+      }));
       const byId = new Map(withStatus.map((m) => [m.id, m]));
       const complete = rows.map((m) => ({
         ...(byId.get(m.id) ?? m),
@@ -1289,8 +1292,8 @@ function MissionsPage() {
                 )}
                 {status === "Unavailable" && (
                   <p className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
-                    Devnet account could not be read. Retry after confirming the program is
-                    deployed.
+                    Devnet status could not be read. Use Refresh chain to retry; this does not mean
+                    the mission transaction failed.
                   </p>
                 )}
               </div>
