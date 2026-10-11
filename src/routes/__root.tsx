@@ -15,6 +15,7 @@ import { AtlasHeader } from "@/components/AtlasHeader";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
+import { getSolanaWalletProvider } from "@/lib/solana-wallet-provider";
 
 function NotFoundComponent() {
   return (
@@ -139,6 +140,13 @@ function RootComponent() {
       router.invalidate();
       if (event === "SIGNED_OUT") {
         queryClient.clear();
+        void (async () => {
+          try {
+            await getSolanaWalletProvider()?.disconnect?.();
+          } catch {
+            // Wallet disconnect failures must not prevent the user from signing out.
+          }
+        })();
         void router.navigate({ to: "/", replace: true });
       } else {
         queryClient.invalidateQueries();
