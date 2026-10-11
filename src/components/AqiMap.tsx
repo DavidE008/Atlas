@@ -6,7 +6,7 @@ import { aqiBand } from "@/lib/aqi";
 
 declare global {
   interface Window {
-    __airwatchMapInit?: () => void;
+    __atlasMapInit?: () => void;
     gm_authFailure?: () => void;
     google?: any;
   }
@@ -51,7 +51,7 @@ function loadMapsApi(): Promise<void> {
       reject(new Error(message));
     }
     window.gm_authFailure = () => fail("Google Maps could not authorize this website.");
-    window.__airwatchMapInit = () => {
+    window.__atlasMapInit = () => {
       window.clearTimeout(timeout);
       if (typeof window.google?.maps?.Map !== "function") {
         fail("Google Maps could not initialize.");
@@ -60,7 +60,7 @@ function loadMapsApi(): Promise<void> {
       resolve();
     };
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__airwatchMapInit&channel=${channel}`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=__atlasMapInit&channel=${channel}`;
     script.async = true;
     script.onerror = () => fail("Google Maps could not load. Check your connection and refresh.");
     document.head.appendChild(script);

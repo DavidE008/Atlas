@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
-import { Wind } from "lucide-react";
+import { AtlasHeader } from "@/components/AtlasHeader";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -81,29 +81,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AirWatch Houston" },
+      { title: "Atlas — Local action. Visible change." },
       {
         name: "description",
         content:
-          "Live air-quality dashboard for Houston with community reports and on-chain verified observations.",
+          "Discover local environmental missions, fund meaningful work, and follow rewards on Solana.",
       },
-      { property: "og:title", content: "AirWatch Houston" },
+      { property: "og:title", content: "Atlas — Local action. Visible change." },
       {
         property: "og:description",
         content:
-          "Live air-quality dashboard for Houston with community reports and on-chain verified observations.",
+          "Discover local environmental missions, fund meaningful work, and follow rewards on Solana.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/images/atlas-symbol.webp", type: "image/webp" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap",
       },
     ],
   }),
@@ -135,8 +135,7 @@ function RootComponent() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED")
-        return;
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
@@ -146,55 +145,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen flex-col bg-background">
-        <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
-            <Link to="/" className="flex items-center gap-2 font-display text-lg font-semibold">
-              <Wind className="h-5 w-5 text-primary" />
-              AirWatch <span className="text-primary">Houston</span>
-            </Link>
-            <nav className="flex items-center gap-1 text-sm">
-              <Link
-                to="/"
-                className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "bg-accent text-foreground" }}
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/reports"
-                className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "bg-accent text-foreground" }}
-              >
-                Reports
-              </Link>
-              <Link
-                to="/missions"
-                className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "bg-accent text-foreground" }}
-              >
-                Missions
-              </Link>
-              <Link
-                to="/about"
-                className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "bg-accent text-foreground" }}
-              >
-                About
-              </Link>
-              <Link
-                to="/auth"
-                className="ml-2 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Sign in
-              </Link>
-            </nav>
-          </div>
-        </header>
+        <AtlasHeader />
         <main className="flex-1">
           <Outlet />
         </main>
       </div>
-      <Toaster theme="dark" position="bottom-right" />
+      <Toaster theme="light" position="bottom-right" />
     </QueryClientProvider>
   );
 }

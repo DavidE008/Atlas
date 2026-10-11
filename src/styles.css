@@ -1,12 +1,13 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "./atlas.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /*
- * AirWatch Houston design system.
- * Dark, map-first dashboard. AQI scale colors are first-class tokens.
+ * Atlas design system.
+ * Shared Tailwind aliases. Atlas theme is defined in atlas.css.
  */
 
 @theme inline {
@@ -48,11 +49,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
-:root {
+.legacy-aqi-theme {
   --radius: 0.625rem;
   --background: oklch(0.14 0.02 250);
   --foreground: oklch(0.95 0.01 250);
@@ -97,7 +98,10 @@
     font-family: var(--font-sans);
   }
 
-  h1, h2, h3, h4 {
+  h1,
+  h2,
+  h3,
+  h4 {
     font-family: var(--font-display);
   }
 }
@@ -111,11 +115,18 @@
 
 /* Atlas field compass: restrained ambient movement, with reduced-motion support. */
 @keyframes atlas-compass-glow {
-  0%, 100% { filter: drop-shadow(0 0 10px rgb(146 227 189 / 8%)); }
-  50% { filter: drop-shadow(0 0 20px rgb(146 227 189 / 22%)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgb(146 227 189 / 8%));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgb(146 227 189 / 22%));
+  }
 }
 @keyframes atlas-compass-orbit {
-  to { transform: rotate(1turn); }
+  to {
+    transform: rotate(1turn);
+  }
 }
 .atlas-compass {
   animation: atlas-compass-glow 6s ease-in-out infinite;

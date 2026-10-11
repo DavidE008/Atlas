@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="field" x1="18" y1="14" x2="108" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17312f" />
+      <stop offset="1" stop-color="#0c171b" />
+    </linearGradient>
+    <linearGradient id="needle" x1="64" y1="24" x2="64" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d5f7dc" />
+      <stop offset="1" stop-color="#75d6ae" />
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="59" fill="url(#field)" />
+  <circle cx="64" cy="64" r="54" stroke="#7de0b5" stroke-opacity=".66" stroke-width="2" />
+  <circle cx="64" cy="64" r="43" stroke="#d1e6d8" stroke-opacity=".22" />
+  <path d="M64 14v10m0 80v10M14 64h10m80 0h10M28.6 28.6l7.1 7.1m56.6 56.6 7.1 7.1m0-70.8-7.1 7.1m-56.6 56.6-7.1 7.1" stroke="#d1e6d8" stroke-opacity=".72" stroke-width="2" stroke-linecap="round" />
+  <path d="m79.8 43.5-9.6 27.1-22 14.2 9.6-27.1 22-14.2Z" fill="url(#needle)" />
+  <path d="m48.2 84.5 9.6-27.1 22-14.2-9.6 27.1-22 14.2Z" fill="#e4bd75" />
+  <circle cx="64" cy="64" r="5.5" fill="#0c171b" stroke="#e7f4e9" stroke-width="2" />
+  <circle cx="64" cy="64" r="1.5" fill="#e7f4e9" />
+  <path d="M64 6v4m58 54h-4M64 122v-4M6 64h4" stroke="#e4bd75" stroke-width="3" stroke-linecap="round" />
+</svg>

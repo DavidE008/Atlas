@@ -69,7 +69,7 @@ export async function attestReport(params: {
   const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
   const memoProgramId = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
   const memo = JSON.stringify({
-    app: "airwatch-houston",
+    app: "atlas",
     report: params.reportId,
     category: params.category,
     neighborhood: params.neighborhood ?? "houston",
