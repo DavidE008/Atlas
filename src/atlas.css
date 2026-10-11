@@ -1229,6 +1229,11 @@ em {
 .mission-field {
   background: #e8ede3;
 }
+.mission-map-location {
+  z-index: 2;
+  top: 0.75rem;
+  left: 0.75rem;
+}
 .mission-field .compass-scene {
   width: 220px;
   height: 220px;

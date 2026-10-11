@@ -506,7 +506,7 @@ function MissionsPage() {
                 </div>
               </div>
             )}
-            <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm">
+            <div className="mission-map-location pointer-events-none absolute rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm">
               <Crosshair className="mr-1 inline h-3 w-3 text-primary" /> Houston, TX ·{" "}
               {loading ? "Loading" : loadError ? "Unavailable" : filtered.length + " missions"}
             </div>
