@@ -22,6 +22,7 @@ Email authentication is enabled. Before deploying, configure Supabase Site URL a
 - `/`: ivory and forest-green landing with alpine artwork and a separate emerald compass/ring animation.
 - `/auth?mode=signup` and `/auth?mode=signin`: email account screens.
 - `/missions`: live mission catalog, wallet connection, funding, evidence and review workflow.
+- Sponsors can attach up to five optional mission references (images, PDF, TXT, CSV, DOCX, XLSX; 10 MB per file, 25 MB total) before funding. File fingerprints are included in the funding terms. Draft references are private to the sponsor; published references can be downloaded from mission details by participants, reviewers, and visitors. Attached files cannot be overwritten. Participant completion evidence remains separate and private.
 - The mission catalog and mission-location picker use Mapbox GL JS. Sponsors can search an address, use device location, load GPS coordinates from a photo, then refine the pin by clicking or dragging it.
 - The mission page checks the Atlas program's executable state on Devnet before wallet actions.
 - `/about`: how missions and human review work.

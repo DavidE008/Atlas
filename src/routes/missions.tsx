@@ -19,6 +19,14 @@ import { ATLAS_ADMIN_WALLET } from "@/lib/reviewer-admin-message";
 import * as exifr from "exifr";
 import { supabase } from "@/integrations/supabase/client";
 import { MissionMap, type MapCoordinate } from "@/components/MissionMap";
+import { MissionAttachments } from "@/components/MissionAttachments";
+import {
+  attachmentContentType,
+  attachmentSize,
+  MISSION_ATTACHMENT_ACCEPT,
+  MISSION_ATTACHMENT_BUCKET,
+  validateMissionAttachments,
+} from "@/lib/mission-attachments";
 import {
   getMissionDeadlines,
   getMissionDisplayStatus,
@@ -1113,6 +1121,7 @@ function MissionsPage() {
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {selected.description}
               </p>
+              <MissionAttachments key={selected.id} missionId={selected.id} />
               {selected.is_demo && (
                 <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
                   Devnet demonstration example. This record does not claim verified real-world
@@ -1519,6 +1528,8 @@ function CreateMission({
   const [missionCategory, setMissionCategory] = useState<MissionCategory>("environment");
   const [reward, setReward] = useState("0.05");
   const [isDemo, setIsDemo] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [fundingStage, setFundingStage] = useState("");
   const [busy, setBusy] = useState(false);
   const findLocation = async () => {
     setLocationSearchBusy(true);
@@ -1572,6 +1583,7 @@ function CreateMission({
   };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     const authenticatedUserId = await requireAccount();
     if (!authenticatedUserId) return;
     setBusy(true);
@@ -1580,7 +1592,19 @@ function CreateMission({
       .join("");
     const { submitBy, reviewBy } = getMissionDeadlines();
     const categoryColor = missionCategoryColor(missionCategory);
+    const uploadedPaths: string[] = [];
+    let referencesSaved = false;
     try {
+      validateMissionAttachments(attachments);
+      setFundingStage("Preparing reference files…");
+      const references = await Promise.all(
+        attachments.map(async (file) => ({
+          file_name: file.name,
+          content_type: attachmentContentType(file.name)!,
+          size_bytes: file.size,
+          sha256: await digest(new Uint8Array(await file.arrayBuffer())),
+        })),
+      );
       const walletAddress = await (await import("@/lib/atlas-missions")).connectMissionWallet();
       const terms = JSON.stringify({
         title,
@@ -1595,6 +1619,7 @@ function CreateMission({
         reward,
         submitBy: submitBy.toISOString(),
         reviewBy: reviewBy.toISOString(),
+        ...(references.length ? { attachments: references } : {}),
       });
       const termsHash = await digest(new TextEncoder().encode(terms));
       const { data: draft, error } = await supabase
@@ -1621,6 +1646,35 @@ function CreateMission({
         .select("id")
         .single();
       if (error || !draft) throw error ?? new Error("Mission draft could not be saved");
+      if (references.length) {
+        setFundingStage("Uploading reference files…");
+        const rows = [];
+        for (const [index, reference] of references.entries()) {
+          const file = attachments[index];
+          if (!file)
+            throw new Error("A reference file is missing. Select it again before funding.");
+          const path = `${authenticatedUserId}/${draft.id}/${crypto.randomUUID()}`;
+          const { error: uploadError } = await supabase.storage
+            .from(MISSION_ATTACHMENT_BUCKET)
+            .upload(path, file, {
+              contentType: reference.content_type,
+              upsert: false,
+            });
+          if (uploadError)
+            throw new Error(
+              `Reference upload failed: ${uploadError.message}. No escrow funding was requested.`,
+            );
+          uploadedPaths.push(path);
+          rows.push({ ...reference, mission_id: draft.id, storage_path: path });
+        }
+        const { error: referenceError } = await supabase.from("mission_attachments").insert(rows);
+        if (referenceError)
+          throw new Error(
+            `Could not save mission references: ${referenceError.message}. No escrow funding was requested.`,
+          );
+        referencesSaved = true;
+      }
+      setFundingStage("Confirm funding in your wallet…");
       const result = await createFundedMission({
         missionId,
         rewardSol: reward,
@@ -1639,8 +1693,12 @@ function CreateMission({
       toast.success("Mission funded and published");
       await onCreated();
     } catch (e) {
+      if (!referencesSaved && uploadedPaths.length) {
+        await supabase.storage.from(MISSION_ATTACHMENT_BUCKET).remove(uploadedPaths);
+      }
       toast.error(e instanceof Error ? e.message : "Funding failed");
     } finally {
+      setFundingStage("");
       setBusy(false);
     }
   };
@@ -1697,6 +1755,63 @@ function CreateMission({
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
             />
           </Field>
+          <div className="rounded-xl border border-border bg-background p-3">
+            <label htmlFor="mission-references" className="block text-sm font-medium">
+              Reference attachments{" "}
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <p
+              id="mission-reference-help"
+              className="mt-1 text-xs leading-relaxed text-muted-foreground"
+            >
+              Add a location photo, route, checklist, or instructions to help participants and
+              reviewers. Published references are visible to everyone. Do not include private
+              information. Up to 5 files, 10 MB each, 25 MB total. Images, PDF, TXT, CSV, DOCX, or
+              XLSX.
+            </p>
+            <input
+              id="mission-references"
+              type="file"
+              multiple
+              accept={MISSION_ATTACHMENT_ACCEPT}
+              disabled={busy}
+              aria-describedby="mission-reference-help"
+              className="mt-3 block w-full min-w-0 text-xs file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-primary"
+              onChange={(event) => {
+                const next = [...attachments, ...Array.from(event.currentTarget.files ?? [])];
+                try {
+                  validateMissionAttachments(next);
+                  setAttachments(next);
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Could not add files");
+                }
+                event.currentTarget.value = "";
+              }}
+            />
+            {attachments.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {attachments.map((file, index) => (
+                  <li key={`${file.name}-${index}`} className="flex items-center gap-2 text-xs">
+                    <span className="min-w-0 flex-1 break-words">
+                      {file.name}{" "}
+                      <span className="text-muted-foreground">({attachmentSize(file.size)})</span>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      aria-label={`Remove ${file.name}`}
+                      className="shrink-0 rounded-full p-2 hover:bg-secondary"
+                      onClick={() =>
+                        setAttachments((current) => current.filter((_, item) => item !== index))
+                      }
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <Field label="Mission category">
             <select
               value={missionCategory}
@@ -1837,7 +1952,8 @@ function CreateMission({
             disabled={busy || !userId}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}Fund {reward} SOL in escrow
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busy ? fundingStage || "Preparing mission…" : `Fund ${reward} SOL in escrow`}
           </button>
         </div>
       </form>

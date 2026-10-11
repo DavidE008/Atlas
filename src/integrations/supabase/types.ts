@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      mission_attachments: {
+        Row: {
+          id: string
+          mission_id: string
+          storage_path: string
+          file_name: string
+          content_type: string
+          size_bytes: number
+          sha256: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          mission_id: string
+          storage_path: string
+          file_name: string
+          content_type: string
+          size_bytes: number
+          sha256: string
+          created_at?: string
+        }
+        Update: never
+        Relationships: [{
+          foreignKeyName: "mission_attachments_mission_id_fkey"
+          columns: ["mission_id"]
+          isOneToOne: false
+          referencedRelation: "missions"
+          referencedColumns: ["id"]
+        }]
+      }
       aq_grid_points: {
         Row: {
           id: string
