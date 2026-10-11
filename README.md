@@ -20,6 +20,7 @@ Email authentication is enabled. Before deploying, configure Supabase Site URL a
 - `/`: ivory and forest-green landing with alpine artwork and a separate emerald compass/ring animation.
 - `/auth?mode=signup` and `/auth?mode=signin`: email account screens.
 - `/missions`: live mission catalog, wallet connection, funding, evidence and review workflow.
+- The mission page checks the Atlas program's executable state on Devnet before wallet actions.
 - `/about`: how missions and human review work.
 - `/reports`: redirects to missions.
 

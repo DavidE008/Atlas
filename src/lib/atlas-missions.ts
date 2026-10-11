@@ -3,10 +3,15 @@ import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
 import { requireAuthenticatedWalletUser } from "./wallet-auth";
+import { isProgramExecutable } from "./solana-program-status";
 
 export const ATLAS_PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
+
+export function isAtlasProgramDeployed() {
+  return isProgramExecutable(ATLAS_PROGRAM_ID, DEVNET_RPC);
+}
 
 async function getWallet() {
   await requireAuthenticatedWalletUser();

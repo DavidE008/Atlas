@@ -12,6 +12,9 @@ Mission terms and submitted evidence are represented by 32-byte SHA-256 commitme
 
 ## Build and deploy
 
-Install the Solana and Anchor toolchains, generate the program deploy keypair, update the program ID with `anchor keys sync`, then build and deploy to devnet. Keep the generated deploy keypair out of source control. Update the matching program address in the web client before enabling wallet actions.
+For a new deployment, install the Solana and Anchor toolchains, generate a deploy keypair, sync the program ID, then build and deploy to Devnet. Keep the generated deploy keypair outside source control and update the matching address in the web client.
 
-This program has not been built or deployed to devnet yet.
+The program is deployed and executable on Solana Devnet at
+`FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ`. Keep this address aligned with `Anchor.toml` and
+`src/lib/atlas-missions.ts`. The Atlas mission page checks the program account and displays its
+Devnet availability. Deployment keys must remain outside the repository.

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -27,6 +27,7 @@ import {
   ATLAS_PROGRAM_ID,
   claimMission,
   createFundedMission,
+  isAtlasProgramDeployed,
   readMissionStatus,
   refundMission,
   resolveMission,
@@ -90,6 +91,7 @@ function MissionsPage() {
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("All missions");
   const [showCreate, setShowCreate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [programStatus, setProgramStatus] = useState("Checking");
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -153,11 +155,21 @@ function MissionsPage() {
     }
   }
 
+  const refreshProgramStatus = useCallback(async () => {
+    setProgramStatus("Checking");
+    try {
+      setProgramStatus((await isAtlasProgramDeployed()) ? "Active" : "Unavailable");
+    } catch {
+      setProgramStatus("Unavailable");
+    }
+  }, []);
+
   useEffect(() => {
     void refresh().catch((error) =>
       toast.error(error instanceof Error ? error.message : "Could not load missions"),
     );
-  }, []);
+    void refreshProgramStatus();
+  }, [refreshProgramStatus]);
   useEffect(() => {
     const {
       data: { subscription },
@@ -413,7 +425,11 @@ function MissionsPage() {
           value={loading ? "…" : loadError ? "Unavailable" : String(paid)}
           icon={<BadgeCheck className="h-4 w-4" />}
         />
-        <Metric label="Network" value="Solana devnet" icon={<ShieldCheck className="h-4 w-4" />} />
+        <Metric
+          label="Program · Devnet"
+          value={programStatus}
+          icon={<ShieldCheck className="h-4 w-4" />}
+        />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
@@ -426,7 +442,10 @@ function MissionsPage() {
               </p>
             </div>
             <button
-              onClick={() => void refresh().catch(() => {})}
+              onClick={() => {
+                void refresh().catch(() => {});
+                void refreshProgramStatus();
+              }}
               disabled={loading}
               className="text-xs text-primary hover:underline"
             >
@@ -719,8 +738,8 @@ function MissionsPage() {
             </p>
           </div>
           <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-            Devnet prototype. Wallet transactions require a deployed Atlas program and devnet SOL.
-            Mission details and photos stay in Supabase.
+            Devnet prototype. Atlas escrow runs on Solana Devnet; mission details and photos stay in
+            Supabase.
           </p>
         </aside>
       </div>
