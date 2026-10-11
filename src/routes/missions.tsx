@@ -496,7 +496,22 @@ function MissionsPage() {
       await recordMissionAppeal({
         data: { missionId: selected.id, txSignature: result.signature },
       });
-      toast.success("Appeal submitted. A different reviewer will make the final decision.");
+      let assignmentDescription = "A different reviewer will make the final decision.";
+      try {
+        const assignment = await advanceMissionReview({ data: { missionId: selected.id } });
+        if (assignment.status === "assigned")
+          assignmentDescription = "A different independent reviewer has been assigned.";
+        else if (assignment.status === "waiting_for_review_pool")
+          assignmentDescription =
+            "Your appeal is recorded. Atlas is waiting for an eligible different reviewer.";
+        else if (assignment.status === "escalated")
+          assignmentDescription =
+            "No eligible backup reviewer was available. This case was escalated to Atlas fallback review.";
+      } catch {
+        assignmentDescription =
+          "Your appeal is recorded. Use Check backup reviewer if assignment does not appear.";
+      }
+      toast.success("Appeal submitted", { description: assignmentDescription });
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not submit appeal");
@@ -1085,11 +1100,13 @@ function MissionsPage() {
                       </button>
                     </div>
                   )}
-                {status === "Submitted" &&
+                {["Submitted", "Appealed"].includes(status) &&
                   selected.submission &&
                   (selected.submission.user_id === userId || selected.created_by === userId) && (
                     <ActionButton busy={busy} onClick={() => void doAdvanceReview()}>
-                      Check reviewer assignment
+                      {status === "Appealed"
+                        ? "Check backup reviewer assignment"
+                        : "Check reviewer assignment"}
                     </ActionButton>
                   )}
                 {status === "RejectedPendingAppeal" && selected.submission?.user_id === userId && (
