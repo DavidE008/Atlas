@@ -843,7 +843,8 @@ function MissionsPage() {
         )}
 
       {userId &&
-        (!wallet || wallet === ATLAS_ADMIN_WALLET || reviewConfig?.upgradeAuthority === wallet) && (
+        wallet &&
+        (wallet === ATLAS_ADMIN_WALLET || reviewConfig?.upgradeAuthority === wallet) && (
           <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-semibold">Atlas review controls · program authority</h2>
