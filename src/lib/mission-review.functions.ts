@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { decodeMissionAccount } from "@/lib/mission-account";
 
 const PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = process.env["SOLANA_RPC_URL"] || "https://api.devnet.solana.com";
@@ -249,19 +250,13 @@ export const advanceMissionReview = createServerFn({ method: "POST" })
     const conn = new Connection(DEVNET_RPC, "confirmed");
     const address = new PublicKey((mission as { mission_address: string }).mission_address);
     const info = await conn.getAccountInfo(address, "confirmed");
-    if (
-      !info ||
-      !bytesEqual(info.owner.toBytes(), new PublicKey(PROGRAM_ID).toBytes()) ||
-      info.data.length < 264
-    )
+    if (!info || !bytesEqual(info.owner.toBytes(), new PublicKey(PROGRAM_ID).toBytes()))
       throw new Error("Mission is not active on the Atlas program.");
-    const account = info.data;
-    const state = account[260]!;
-    const round = account[261]!;
-    const reviewerPresent = account[73] === 1;
-    const assignmentDeadline = Number(
-      new DataView(account.buffer, account.byteOffset, account.byteLength).getBigInt64(236, true),
-    );
+    const account = decodeMissionAccount(info.data);
+    const state = account.status;
+    const round = account.reviewRound;
+    const reviewerPresent = account.assignedReviewer !== null;
+    const assignmentDeadline = Number(account.assignmentDeadline);
     const now = Math.floor(Date.now() / 1000);
     if (state !== 2 && state !== 3) return { status: state === 5 ? "escalated" : "not_reviewable" };
 
@@ -322,7 +317,7 @@ export const advanceMissionReview = createServerFn({ method: "POST" })
     const excluded = [
       (mission as { sponsor_wallet: string }).sponsor_wallet,
       (submission as { participant_wallet: string }).participant_wallet,
-      ...(account[106] === 1 ? [new PublicKey(account.subarray(107, 139)).toBase58()] : []),
+      ...(account.previousReviewer ? [new PublicKey(account.previousReviewer).toBase58()] : []),
     ];
     const { data: candidates, error: candidateError } = await db.rpc(
       "claim_next_mission_reviewer" as never,
@@ -437,12 +432,12 @@ export const markMissionReviewAccepted = createServerFn({ method: "POST" })
       new PublicKey(mission.mission_address),
       "confirmed",
     );
+    if (!info) throw new Error("On-chain reviewer acceptance could not be verified.");
+    const account = decodeMissionAccount(info.data);
     if (
-      !info ||
-      info.data.length < 264 ||
-      info.data[73] !== 1 ||
-      info.data[262] !== 1 ||
-      new PublicKey(info.data.subarray(74, 106)).toBase58() !== row.reviewer_wallet
+      !account.assignedReviewer ||
+      !account.accepted ||
+      new PublicKey(account.assignedReviewer).toBase58() !== row.reviewer_wallet
     )
       throw new Error("On-chain reviewer acceptance could not be verified.");
     const { error: updateError } = await db
@@ -496,7 +491,8 @@ export const recordMissionDecision = createServerFn({ method: "POST" })
     if (data.approve && account) throw new Error("Approved escrow has not closed on-chain.");
     if (
       !data.approve &&
-      (!account || account.data[260] !== (assignment.review_round === 2 ? 7 : 4))
+      (!account ||
+        decodeMissionAccount(account.data).status !== (assignment.review_round === 2 ? 7 : 4))
     )
       throw new Error("The on-chain rejection state could not be verified.");
     const { error: updateAssignmentError } = await db
@@ -564,7 +560,7 @@ export const recordMissionAppeal = createServerFn({ method: "POST" })
       new PublicKey(mission.mission_address),
       "confirmed",
     );
-    if (!onchain || onchain.data.length < 264 || onchain.data[260] !== 3)
+    if (!onchain || decodeMissionAccount(onchain.data).status !== 3)
       throw new Error("The appeal state could not be verified on-chain.");
     const { error: updateError } = await db
       .from("missions")

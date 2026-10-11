@@ -3,6 +3,7 @@ import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
 import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
 import { requireAuthenticatedWalletUser } from "./wallet-auth";
 import { isProgramExecutable } from "./solana-program-status";
+import { decodeMissionAccount } from "./mission-account";
 
 export const ATLAS_PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = "https://api.devnet.solana.com";
@@ -459,9 +460,9 @@ export async function readMissionStatus(address: string) {
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const account = await connection.getAccountInfo(new PublicKey(address), "confirmed");
   if (!account) return null;
-  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 264)
+  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID)
     throw new Error("Mission account is not owned by the Atlas program.");
-  const status = account.data[260]!;
+  const status = decodeMissionAccount(account.data).status;
   return (
     (
       [
