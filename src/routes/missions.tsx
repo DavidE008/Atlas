@@ -466,46 +466,6 @@ function MissionsPage() {
               onSelect={setSelectedId}
               className="absolute inset-0"
             />
-            {filtered.length === 0 && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-5">
-                <div className="mission-empty">
-                  <h3>
-                    {loading
-                      ? "Finding local missions…"
-                      : loadError
-                        ? "We couldn't load the field."
-                        : "The next mission starts with you."}
-                  </h3>
-                  <p>
-                    {loading
-                      ? "Checking the Atlas mission catalog."
-                      : loadError
-                        ? loadError
-                        : "No missions have been published yet. Help launch a local cleanup with a reward for the work."}
-                  </p>
-                  {!loading && !loadError && (
-                    <button
-                      className="pointer-events-auto"
-                      onClick={() =>
-                        userId
-                          ? setShowCreate(true)
-                          : void navigate({ to: "/auth", search: { mode: "signup" } })
-                      }
-                    >
-                      {userId ? "Fund the first mission" : "Join Atlas"} <ArrowUpRight size={16} />
-                    </button>
-                  )}
-                  {!loading && loadError && (
-                    <button
-                      className="button-text pointer-events-auto"
-                      onClick={() => void refresh().catch(() => {})}
-                    >
-                      Try again
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
             <div className="mission-map-location pointer-events-none absolute rounded-lg border border-white/70 bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm">
               <Crosshair className="mr-1 inline h-3 w-3 text-primary" /> Houston, TX ·{" "}
               {loading ? "Loading" : loadError ? "Unavailable" : filtered.length + " missions"}

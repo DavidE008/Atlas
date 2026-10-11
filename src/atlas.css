@@ -1234,36 +1234,6 @@ em {
   top: 0.75rem;
   left: 0.75rem;
 }
-.mission-field .compass-scene {
-  width: 220px;
-  height: 220px;
-  opacity: 0.45;
-}
-.mission-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 25px;
-  border: 1px solid var(--border);
-  background: #fffefaef;
-  border-radius: 14px;
-  max-width: 360px;
-  gap: 12px;
-}
-.mission-empty h3 {
-  font-size: 22px;
-  font-weight: 500;
-  letter-spacing: -0.045em;
-}
-.mission-empty p {
-  font-size: 13px;
-  color: #75806b;
-  line-height: 1.6;
-}
-.mission-empty .button-text {
-  font-size: 13px;
-}
 @media (min-width: 1600px) {
   .landing-hero {
     min-height: 830px;
