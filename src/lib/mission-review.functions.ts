@@ -97,6 +97,14 @@ async function assignmentKeypair() {
   return { Keypair, keypair: Keypair.fromSecretKey(Uint8Array.from(secret as number[])) };
 }
 
+// Return only the public address; the assignment secret must stay on the server.
+export const getServerAssignmentAddress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { keypair } = await assignmentKeypair();
+    return { publicAddress: keypair.publicKey.toBase58() };
+  });
+
 async function sendAssignmentInstruction(input: {
   sponsor: string;
   missionKey: string;
@@ -124,7 +132,9 @@ async function sendAssignmentInstruction(input: {
     configInfo.data.length < 113 ||
     !bytesEqual(configInfo.data.subarray(40, 72), auth.keypair.publicKey.toBytes())
   )
-    throw new Error("The assignment key does not match Atlas program configuration.");
+    throw new Error(
+      "Atlas assignment setup needs updating. The operator must open Missions, load the server assignment address in Atlas review controls, then renew the assignment key. The approved reviewer account is not the problem.",
+    );
   const assignmentExpiresAt = Number(
     new DataView(
       configInfo.data.buffer,

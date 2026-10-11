@@ -49,6 +49,7 @@ import {
 import {
   advanceMissionReview,
   enrollAsReviewer,
+  getServerAssignmentAddress,
   listMyReviewAssignments,
   markMissionReviewAccepted,
   recordFallbackDecision,
@@ -598,6 +599,21 @@ function MissionsPage() {
     }
   };
 
+  const doLoadServerAssignmentAddress = async () => {
+    setBusy(true);
+    try {
+      const { publicAddress } = await getServerAssignmentAddress();
+      setAssignmentAuthorityInput(publicAddress);
+      toast.success(
+        "Server public address loaded. Renew the assignment key to authorize it on Solana.",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load server assignment address");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doConfigureReviewKeys = async () => {
     if (!(await requireWalletAccount())) return;
     if (!assignmentAuthorityInput.trim()) {
@@ -610,6 +626,14 @@ function MissionsPage() {
     }
     setBusy(true);
     try {
+      const { publicAddress } = await getServerAssignmentAddress();
+      if (assignmentAuthorityInput.trim() !== publicAddress) {
+        setAssignmentAuthorityInput(publicAddress);
+        toast.error(
+          "The address differed from the server key. The correct address is now loaded; review it and try again.",
+        );
+        return;
+      }
       const expiresAt = Math.floor(Date.now() / 1000) + 6 * 24 * 60 * 60;
       if (reviewConfig?.configured) {
         await renewMissionAssignmentAuthority({
@@ -778,6 +802,14 @@ function MissionsPage() {
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
             />
           </label>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void doLoadServerAssignmentAddress()}
+            className="mt-2 rounded-lg border border-primary/25 bg-background px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
+          >
+            Load server assignment address
+          </button>
           {!reviewConfig.configured && (
             <label className="mt-3 block text-xs font-medium text-muted-foreground">
               Separate Atlas fallback wallet · public address
