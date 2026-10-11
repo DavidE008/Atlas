@@ -3,10 +3,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, Loader2, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CompassScene } from "@/components/CompassScene";
+import { getAuthReturnPath } from "@/lib/auth-return-path";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { mode?: "signin" | "signup"; next?: "admin-reviewers" } => ({
     mode: search["mode"] === "signup" ? "signup" : "signin",
+    ...(search["next"] === "admin-reviewers" ? { next: "admin-reviewers" as const } : {}),
   }),
   head: () => ({
     meta: [
@@ -21,7 +25,9 @@ export const Route = createFileRoute("/auth")({
 });
 function AuthPage() {
   const navigate = useNavigate();
-  const mode = Route.useSearch().mode ?? "signin";
+  const { mode: requestedMode, next } = Route.useSearch();
+  const mode = requestedMode ?? "signin";
+  const destination = getAuthReturnPath(next);
   const signup = mode === "signup";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,16 +39,16 @@ function AuthPage() {
   useEffect(() => {
     let live = true;
     void supabase.auth.getSession().then(({ data }) => {
-      if (live && data.session) void navigate({ to: "/missions", replace: true });
+      if (live && data.session) void navigate({ to: destination, replace: true });
     });
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session) void navigate({ to: "/missions", replace: true });
+      if (event === "SIGNED_IN" && session) void navigate({ to: destination, replace: true });
     });
     return () => {
       live = false;
       data.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [destination, navigate]);
   useEffect(() => {
     setError("");
     setConfirmation(false);
@@ -59,11 +65,13 @@ function AuthPage() {
           password,
           options: {
             data: { display_name: displayName.trim() },
-            emailRedirectTo: window.location.origin + "/missions",
+            emailRedirectTo:
+              window.location.origin +
+              (next === "admin-reviewers" ? "/auth?mode=signin&next=admin-reviewers" : "/missions"),
           },
         });
         if (authError) throw authError;
-        if (data.session) await navigate({ to: "/missions" });
+        if (data.session) await navigate({ to: destination });
         else setConfirmation(true);
       } else {
         const { error: authError } = await supabase.auth.signInWithPassword({
@@ -71,7 +79,7 @@ function AuthPage() {
           password,
         });
         if (authError) throw authError;
-        await navigate({ to: "/missions" });
+        await navigate({ to: destination });
       }
     } catch (issue) {
       const message =
@@ -117,7 +125,11 @@ function AuthPage() {
                 Atlas account.
               </p>
               <p className="form-help">If it doesn't arrive, check your spam folder.</p>
-              <Link to="/auth" search={{ mode: "signin" }} className="button-primary">
+              <Link
+                to="/auth"
+                search={{ mode: "signin", ...(next ? { next } : {}) }}
+                className="button-primary"
+              >
                 Back to sign in <ArrowRight size={18} />
               </Link>
             </div>
@@ -210,7 +222,10 @@ function AuthPage() {
               </form>
               <p className="auth-switch">
                 {signup ? "Already part of Atlas?" : "New to Atlas?"}{" "}
-                <Link to="/auth" search={{ mode: signup ? "signin" : "signup" }}>
+                <Link
+                  to="/auth"
+                  search={{ mode: signup ? "signin" : "signup", ...(next ? { next } : {}) }}
+                >
                   {signup ? "Sign in" : "Create an account"}
                 </Link>
               </p>

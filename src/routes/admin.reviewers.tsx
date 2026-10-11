@@ -132,11 +132,11 @@ function ReviewerAdminPage() {
       <main className="mx-auto max-w-3xl px-4 py-16 md:px-6">
         <RestrictedPanel
           title="Sign in to Atlas first"
-          description="Reviewer operations are limited to the Atlas operator account and wallet."
+          description="Sign in with your Atlas account. We’ll bring you back here, then ask you to verify the Atlas operator wallet ending in 4Q5G3. There is no separate admin role on the account."
           action={
             <Link
               to="/auth"
-              search={{ mode: "signin" }}
+              search={{ mode: "signin", next: "admin-reviewers" }}
               className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
             >
               Sign in
@@ -159,6 +159,11 @@ function ReviewerAdminPage() {
             Review volunteer requests before they can receive mission assignments. Each approval
             requires a fresh signature from the configured operator wallet. Add only people you
             personally invited or already know for this small pilot.
+          </p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Access is verified by signing in to Atlas and then signing a message with the operator
+            wallet. This page can approve pending requests; it does not currently provide pause or
+            removal controls for already approved reviewers.
           </p>
         </div>
         <Link
