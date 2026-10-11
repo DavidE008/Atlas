@@ -1,9 +1,9 @@
-// Light Solana integration: Phantom wallet + devnet memo attestation.
+// Solana browser wallet integration + devnet memo attestation.
 // Browser-only module — never import from server code.
 
-import type { PublicKey, Transaction } from "@solana/web3.js";
 import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
+import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
@@ -25,33 +25,18 @@ function loadSolanaSdk() {
   return sdkPromise;
 }
 
-type PhantomProvider = {
-  isPhantom?: boolean;
-  publicKey?: PublicKey;
-  connect: () => Promise<{ publicKey: PublicKey }>;
-  disconnect: () => Promise<void>;
-  signAndSendTransaction: (
-    tx: Transaction,
-  ) => Promise<{ signature: string }>;
-};
-
-function getPhantom(): PhantomProvider | null {
-  const w = window as unknown as { solana?: PhantomProvider };
-  return w.solana?.isPhantom ? w.solana : null;
+function getWallet() {
+  return getSolanaWalletProvider();
 }
 
-export function isPhantomInstalled(): boolean {
-  return getPhantom() != null;
+export function isSolanaWalletAvailable(): boolean {
+  return getWallet() != null;
 }
 
 export async function connectWallet(): Promise<string> {
-  const phantom = getPhantom();
-  if (!phantom) {
-    throw new Error(
-      "Phantom wallet not found. Install Phantom to record on-chain proofs.",
-    );
-  }
-  const { publicKey } = await phantom.connect();
+  const wallet = getWallet();
+  if (!wallet) throw new Error(missingSolanaWalletMessage());
+  const { publicKey } = await wallet.connect();
   return publicKey.toBase58();
 }
 
@@ -60,11 +45,9 @@ export async function attestReport(params: {
   category: string;
   neighborhood: string | null;
 }): Promise<{ signature: string; wallet: string }> {
-  const phantom = getPhantom();
-  if (!phantom) {
-    throw new Error("Phantom wallet not found.");
-  }
-  const { publicKey } = await phantom.connect();
+  const wallet = getWallet();
+  if (!wallet) throw new Error(missingSolanaWalletMessage());
+  const { publicKey } = await wallet.connect();
 
   const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
   const memoProgramId = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
@@ -92,7 +75,7 @@ export async function attestReport(params: {
     }),
   );
 
-  const { signature } = await phantom.signAndSendTransaction(tx);
+  const { signature } = await wallet.signAndSendTransaction(tx);
   await connection.confirmTransaction(
     { signature, blockhash, lastValidBlockHeight },
     "confirmed",

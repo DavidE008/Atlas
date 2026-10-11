@@ -1,26 +1,20 @@
-import type { PublicKey, Transaction } from "@solana/web3.js";
+import type { PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
+import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
 
 export const ATLAS_PROGRAM_ID = "FUjnUmo4QBtEeAEs2n5844zKfAN5sZP2MgbnFTiA3hFQ";
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
 
-type Phantom = {
-  isPhantom?: boolean;
-  publicKey?: PublicKey;
-  connect(): Promise<{ publicKey: PublicKey }>;
-  signAndSendTransaction(tx: Transaction): Promise<{ signature: string }>;
-};
-
-function getPhantom(): Phantom {
-  const provider = (window as Window & { solana?: Phantom }).solana;
-  if (!provider?.isPhantom) throw new Error("Install Phantom to use Atlas missions.");
+function getWallet() {
+  const provider = getSolanaWalletProvider();
+  if (!provider) throw new Error(missingSolanaWalletMessage());
   return provider;
 }
 
 export async function connectMissionWallet() {
-  const { publicKey } = await getPhantom().connect();
+  const { publicKey } = await getWallet().connect();
   return publicKey.toBase58();
 }
 
@@ -88,7 +82,7 @@ async function sha256(value: Uint8Array | string) {
 }
 async function sendInstruction(ixData: Uint8Array, keys: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[]) {
   const { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } = await loadSdk();
-  const provider = getPhantom();
+  const provider = getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
   const instruction = new TransactionInstruction({
@@ -121,7 +115,7 @@ export async function createFundedMission(input: {
   terms: string;
 }) {
   const { PublicKey, SystemProgram } = await loadSdk();
-  const provider = getPhantom();
+  const provider = getWallet();
   const { publicKey } = await provider.connect();
   const reviewer = new PublicKey(input.reviewerWallet);
   const mission = { hex: input.missionId.toLowerCase(), bytes: hexBytes(input.missionId) };
@@ -140,7 +134,7 @@ export async function createFundedMission(input: {
 
 export async function claimMission(input: { sponsorWallet: string; missionId: string }) {
   const { PublicKey } = await loadSdk();
-  const provider = getPhantom(); const { publicKey } = await provider.connect();
+  const provider = getWallet(); const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(IX.claim, [
     { pubkey: pda, isSigner: false, isWritable: true },
@@ -150,7 +144,7 @@ export async function claimMission(input: { sponsorWallet: string; missionId: st
 
 export async function submitMissionEvidence(input: { sponsorWallet: string; missionId: string; evidence: string }) {
   const { PublicKey } = await loadSdk();
-  const provider = getPhantom(); const { publicKey } = await provider.connect();
+  const provider = getWallet(); const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   const evidenceHash = await sha256(input.evidence);
   const result = await sendInstruction(concat(IX.submit, evidenceHash), [
@@ -162,7 +156,7 @@ export async function submitMissionEvidence(input: { sponsorWallet: string; miss
 
 export async function resolveMission(input: { sponsorWallet: string; missionId: string; participantWallet: string; approve: boolean }) {
   const { PublicKey } = await loadSdk();
-  const provider = getPhantom(); const { publicKey } = await provider.connect();
+  const provider = getWallet(); const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(concat(IX.resolve, new Uint8Array([input.approve ? 1 : 0])), [
     { pubkey: pda, isSigner: false, isWritable: true },
@@ -174,7 +168,7 @@ export async function resolveMission(input: { sponsorWallet: string; missionId: 
 
 export async function refundMission(input: { sponsorWallet: string; missionId: string }) {
   const { PublicKey } = await loadSdk();
-  const provider = getPhantom(); const { publicKey } = await provider.connect();
+  const provider = getWallet(); const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(IX.refund, [
     { pubkey: pda, isSigner: false, isWritable: true },

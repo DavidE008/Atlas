@@ -356,7 +356,7 @@ function SettingsPage() {
               ) : (
                 <Wallet size={16} />
               )}{" "}
-              Connect Phantom
+              Connect wallet
             </button>
             {connectedWallet && (
               <button
@@ -376,8 +376,8 @@ function SettingsPage() {
             )}
           </div>
           <p className="settings-note">
-            To switch the participant to a different wallet, connect the Phantom account for that
-            address, then save it here. Past missions keep their original on-chain wallet.
+            To switch to another account, select it in Brave Wallet, connect it here, then save.
+            Past missions keep their original on-chain wallet.
           </p>
         </section>
       </div>
