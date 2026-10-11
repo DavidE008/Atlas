@@ -1,9 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
-import { Check, KeyRound, Loader2, Mail, Save, UserRound, Wallet } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  Camera,
+  Check,
+  ImagePlus,
+  KeyRound,
+  Loader2,
+  Mail,
+  RotateCcw,
+  Save,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { connectWallet } from "@/lib/solana";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import {
   getSelectedSolanaWalletProviderId,
   listSolanaWalletProviders,
@@ -26,6 +38,7 @@ function SettingsPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [displayName, setDisplayName] = useState("");
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [connectedWallet, setConnectedWallet] = useState("");
@@ -37,6 +50,8 @@ function SettingsPage() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const libraryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -48,7 +63,11 @@ function SettingsPage() {
       if (currentUser) {
         setEmail(currentUser.email ?? "");
         const [profileResult, settingsResult] = await Promise.all([
-          supabase.from("profiles").select("display_name").eq("id", currentUser.id).maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("display_name, avatar_url")
+            .eq("id", currentUser.id)
+            .maybeSingle(),
           supabase
             .from("account_settings")
             .select("wallet_address")
@@ -57,6 +76,7 @@ function SettingsPage() {
         ]);
         if (!live) return;
         if (profileResult.data) setDisplayName(profileResult.data.display_name ?? "");
+        if (profileResult.data) setAvatarPath(profileResult.data.avatar_url);
         if (settingsResult.data) setWalletAddress(settingsResult.data.wallet_address);
         if (profileResult.error) setError(profileResult.error.message);
         if (settingsResult.error) setError(settingsResult.error.message);
@@ -77,6 +97,7 @@ function SettingsPage() {
       if (event !== "SIGNED_OUT") return;
       setUser(null);
       setDisplayName("");
+      setAvatarPath(null);
       setEmail("");
       setWalletAddress(null);
       setConnectedWallet("");
@@ -114,8 +135,67 @@ function SettingsPage() {
       .update({ display_name: displayName.trim() || null })
       .eq("id", user.id);
     if (updateError) setError(updateError.message);
-    else setNotice("Your name has been updated.");
+    else {
+      setNotice("Your name has been updated.");
+      window.dispatchEvent(new Event("atlas-profile-updated"));
+    }
     setBusy("");
+  }
+
+  async function setProfilePhoto(file: File | null) {
+    if (!user) return;
+    clearFeedback();
+    setBusy("avatar");
+    let newPath: string | null = null;
+    try {
+      if (file) {
+        const extensionByType: Record<string, string> = {
+          "image/jpeg": "jpg",
+          "image/png": "png",
+          "image/webp": "webp",
+        };
+        const extension = extensionByType[file.type];
+        if (!extension) throw new Error("Choose a JPG, PNG, or WebP image.");
+        if (file.size > 5 * 1024 * 1024) throw new Error("Choose an image under 5 MB.");
+
+        newPath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+        const { error: uploadError } = await supabase.storage
+          .from("profile-avatars")
+          .upload(newPath, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+        if (uploadError) throw uploadError;
+      }
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: newPath })
+        .eq("id", user.id);
+      if (updateError) throw updateError;
+
+      const oldPath = avatarPath;
+      setAvatarPath(newPath);
+      setNotice(
+        file ? "Your profile photo has been updated." : "Your default Atlas photo is now active.",
+      );
+      window.dispatchEvent(new Event("atlas-profile-updated"));
+      if (oldPath && oldPath !== newPath) {
+        const { error: removeError } = await supabase.storage
+          .from("profile-avatars")
+          .remove([oldPath]);
+        if (removeError) console.warn("Old profile photo could not be removed.", removeError);
+      }
+    } catch (issue) {
+      if (newPath) await supabase.storage.from("profile-avatars").remove([newPath]);
+      setError(issue instanceof Error ? issue.message : "We couldn't update your profile photo.");
+    } finally {
+      setBusy("");
+      if (libraryInputRef.current) libraryInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+    }
+  }
+
+  function onPhotoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0] ?? null;
+    if (file) void setProfilePhoto(file);
   }
 
   async function saveEmail(event: FormEvent) {
@@ -225,6 +305,65 @@ function SettingsPage() {
             <div>
               <h2>Profile</h2>
               <p>Your name appears with your Atlas activity.</p>
+            </div>
+          </div>
+          <div className="profile-photo-editor">
+            <ProfileAvatar
+              path={avatarPath}
+              name={displayName || user.email || "Atlas account"}
+              className="profile-avatar-large"
+            />
+            <div className="profile-photo-controls">
+              <p>Your photo appears with your Atlas account and activity.</p>
+              <input
+                ref={libraryInputRef}
+                className="profile-photo-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={onPhotoSelected}
+                aria-label="Choose a profile photo from your library"
+              />
+              <input
+                ref={cameraInputRef}
+                className="profile-photo-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="user"
+                onChange={onPhotoSelected}
+                aria-label="Take a profile photo"
+              />
+              <div className="profile-photo-actions">
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={() => libraryInputRef.current?.click()}
+                  disabled={busy === "avatar"}
+                >
+                  {busy === "avatar" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <ImagePlus size={16} />
+                  )}
+                  Choose from library
+                </button>
+                <button
+                  className="button-secondary"
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={busy === "avatar"}
+                >
+                  <Camera size={16} /> Take a photo
+                </button>
+                <button
+                  className="profile-photo-default"
+                  type="button"
+                  onClick={() => void setProfilePhoto(null)}
+                  disabled={busy === "avatar" || !avatarPath}
+                >
+                  <RotateCcw size={15} /> Use default
+                </button>
+              </div>
+              <span className="settings-note">JPG, PNG, or WebP · Up to 5 MB</span>
             </div>
           </div>
           <form className="atlas-form" onSubmit={saveName}>

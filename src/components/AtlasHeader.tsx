@@ -3,22 +3,55 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Session } from "@supabase/supabase-js";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 
 export function AtlasHeader() {
   const [open, setOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [avatarPath, setAvatarPath] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     let authEventReceived = false;
+    let profileRequest = 0;
+    const refreshProfile = async (session: Session | null) => {
+      const request = ++profileRequest;
+      if (!session) {
+        setAvatarPath(null);
+        setDisplayName(null);
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (live && request === profileRequest) {
+        setAvatarPath(data?.avatar_url ?? null);
+        setDisplayName(data?.display_name ?? session.user.email ?? null);
+      }
+    };
     void supabase.auth.getSession().then(({ data }) => {
-      if (live && !authEventReceived) setSignedIn(!!data.session);
+      if (live && !authEventReceived) {
+        setSignedIn(!!data.session);
+        void refreshProfile(data.session);
+      }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       authEventReceived = true;
       setSignedIn(!!session);
+      void refreshProfile(session);
     });
+    const onProfileUpdated = () => {
+      void supabase.auth.getSession().then(({ data: sessionData }) => {
+        void refreshProfile(sessionData.session);
+      });
+    };
+    window.addEventListener("atlas-profile-updated", onProfileUpdated);
     return () => {
       live = false;
+      window.removeEventListener("atlas-profile-updated", onProfileUpdated);
       data.subscription.unsubscribe();
     };
   }, []);
@@ -66,6 +99,11 @@ export function AtlasHeader() {
           {signedIn ? (
             <>
               <Link to="/settings" onClick={() => setOpen(false)}>
+                <ProfileAvatar
+                  path={avatarPath}
+                  name={displayName}
+                  className="profile-avatar-nav"
+                />
                 Settings
               </Link>
               <button type="button" onClick={() => void signOut()}>
