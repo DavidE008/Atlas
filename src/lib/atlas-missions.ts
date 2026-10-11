@@ -224,7 +224,10 @@ export async function initializeMissionConfig(input: {
     [programId.toBuffer()],
     new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"),
   );
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const result = await sendInstruction(
     concat(
       IX.initializeConfig,
@@ -247,7 +250,10 @@ export async function readMissionConfig() {
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
   const loaderId = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
   const [programData] = PublicKey.findProgramAddressSync([programId.toBuffer()], loaderId);
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const [programDataInfo, configInfo] = await Promise.all([
     connection.getAccountInfo(programData, "confirmed"),
@@ -286,7 +292,10 @@ export async function renewMissionAssignmentAuthority(input: {
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const result = await sendInstruction(
     concat(
       IX.renewAssignmentAuthority,
@@ -364,7 +373,10 @@ export async function assignMissionReviewer(input: {
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(concat(IX.assign, new PublicKey(input.reviewerWallet).toBytes()), [
     { pubkey: config, isSigner: false, isWritable: false },
@@ -400,7 +412,10 @@ export async function escalateMission(input: { sponsorWallet: string; missionId:
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(IX.escalate, [
     { pubkey: config, isSigner: false, isWritable: false },
@@ -419,7 +434,10 @@ export async function resolveEscalatedMission(input: {
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const programId = new PublicKey(ATLAS_PROGRAM_ID);
-  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const [config] = PublicKey.findProgramAddressSync(
+    [new TextEncoder().encode("config")],
+    programId,
+  );
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
   return sendInstruction(concat(IX.fallback, new Uint8Array([input.approve ? 1 : 0])), [
     { pubkey: config, isSigner: false, isWritable: false },
