@@ -71,6 +71,20 @@ function SettingsPage() {
   }, [navigate]);
 
   useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_OUT") return;
+      setUser(null);
+      setDisplayName("");
+      setEmail("");
+      setWalletAddress(null);
+      setConnectedWallet("");
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const refreshProviders = () => {
       const providers = listSolanaWalletProviders();
       setWalletProviders(providers);
