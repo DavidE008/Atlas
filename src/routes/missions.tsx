@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrowUpRight,
@@ -663,8 +663,9 @@ function MissionsPage() {
         <div className="mb-5 max-w-2xl rounded-2xl border border-primary/20 bg-card p-5">
           <h2 className="font-semibold">Join Atlas’s independent reviewer pool</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Atlas manually approves volunteers. Your identity and alias stay private; the assigned
-            wallet is public on Solana.
+            The reviewer pool is an invite-only pilot. Atlas may approve people the operator
+            personally invited or already knows; approval is not a certification. Your identity and
+            alias stay private in Atlas, while the assigned wallet is public on Solana.
           </p>
           <label className="mt-3 block text-xs font-medium text-muted-foreground">
             Private reviewer alias
@@ -700,7 +701,15 @@ function MissionsPage() {
 
       {userId && wallet && reviewConfig?.upgradeAuthority === wallet && (
         <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
-          <h2 className="font-semibold">Atlas review controls · program authority</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-semibold">Atlas review controls · program authority</h2>
+            <Link
+              to="/admin/reviewers"
+              className="rounded-full border border-primary/25 bg-background px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5"
+            >
+              Manage reviewer requests
+            </Link>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             This setup is available only to the wallet that can upgrade the Atlas program. The
             assignment key expires in seven days at most and cannot accept reviews, decide cases, or

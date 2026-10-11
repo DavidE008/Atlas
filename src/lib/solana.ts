@@ -50,6 +50,22 @@ export async function connectWallet(providerId?: string): Promise<string> {
   return publicKey.toBase58();
 }
 
+export async function signSolanaMessage(message: string): Promise<{
+  walletAddress: string;
+  signature: string;
+}> {
+  await requireAuthenticatedWalletUser();
+  const wallet = getWallet();
+  if (!wallet) throw new Error(missingSolanaWalletMessage());
+  const { publicKey } = await wallet.connect();
+  if (!wallet.signMessage)
+    throw new Error("Your selected wallet cannot sign messages. Choose another Solana wallet.");
+  const signature = await wallet.signMessage(new TextEncoder().encode(message));
+  let binary = "";
+  for (const byte of signature) binary += String.fromCharCode(byte);
+  return { walletAddress: publicKey.toBase58(), signature: btoa(binary) };
+}
+
 export async function attestReport(params: {
   reportId: string;
   category: string;

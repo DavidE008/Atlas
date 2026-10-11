@@ -8,9 +8,16 @@ import {
   type SolanaWalletProvider,
 } from "./solana-wallet-provider";
 
+type TestInjectedWalletProvider = Omit<SolanaWalletProvider, "signMessage"> & {
+  signMessage?: (
+    message: Uint8Array,
+    displayEncoding?: "utf8" | "hex",
+  ) => Promise<Uint8Array | { signature: Uint8Array }>;
+};
+
 type WalletWindow = Window & {
-  braveSolana?: SolanaWalletProvider;
-  solana?: SolanaWalletProvider;
+  braveSolana?: TestInjectedWalletProvider;
+  solana?: TestInjectedWalletProvider;
   solanaWeb3?: typeof import("@solana/web3.js");
 };
 
@@ -46,6 +53,19 @@ describe("getSolanaWalletProvider", () => {
     walletWindow.solana = brave;
 
     expect(getSolanaWalletProvider()).toBe(brave);
+  });
+
+  it("normalizes Phantom message signatures for server authorization", async () => {
+    const signature = new Uint8Array([1, 2, 3]);
+    const signMessage = vi.fn(async () => ({ signature }));
+    walletWindow.solana = {
+      ...fakeProvider({ isPhantom: true }),
+      signMessage,
+    };
+
+    const provider = getSolanaWalletProvider();
+    expect(await provider!.signMessage!(new Uint8Array([4, 5]))).toBe(signature);
+    expect(signMessage).toHaveBeenCalledWith(new Uint8Array([4, 5]), "utf8");
   });
 
   it("ignores an injected object that does not identify as a supported wallet", () => {

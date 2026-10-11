@@ -1,6 +1,6 @@
 import type { PublicKey, Transaction } from "@solana/web3.js";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
-import { SolanaSignAndSendTransaction } from "@solana/wallet-standard-features";
+import { SolanaSignAndSendTransaction, SolanaSignMessage } from "@solana/wallet-standard-features";
 import { getWallets } from "@wallet-standard/app";
 import type { Wallet, WalletAccount } from "@wallet-standard/base";
 
@@ -40,6 +40,7 @@ export type SolanaWalletProvider = {
   connect: () => Promise<{ publicKey: PublicKey }>;
   disconnect?: () => Promise<void>;
   signAndSendTransaction: (transaction: Transaction) => Promise<{ signature: string }>;
+  signMessage?: (message: Uint8Array) => Promise<Uint8Array>;
 };
 
 export type SolanaWalletChoice = {
@@ -63,11 +64,34 @@ type StandardSolanaWallet = Wallet & {
         }[]
       ) => Promise<readonly { signature: Uint8Array }[]>;
     };
+    [SolanaSignMessage]?: {
+      signMessage: (
+        ...inputs: readonly { account: WalletAccount; message: Uint8Array }[]
+      ) => Promise<readonly { signature: Uint8Array; signedMessage: Uint8Array }[]>;
+    };
   };
 };
 
 type ProviderEntry = SolanaWalletChoice & { provider: SolanaWalletProvider };
+type InjectedSolanaWalletProvider = Omit<SolanaWalletProvider, "signMessage"> & {
+  signMessage?: (
+    message: Uint8Array,
+    displayEncoding?: "utf8" | "hex",
+  ) => Promise<Uint8Array | { signature: Uint8Array }>;
+};
 const standardProviderCache = new WeakMap<Wallet, SolanaWalletProvider>();
+
+function injectedWalletProvider(provider: InjectedSolanaWalletProvider): SolanaWalletProvider {
+  if (!provider.signMessage) return provider as unknown as SolanaWalletProvider;
+  return {
+    ...provider,
+    async signMessage(message) {
+      if (!provider.signMessage) throw new Error("This wallet does not support message signing.");
+      const result = await provider.signMessage(message, "utf8");
+      return result instanceof Uint8Array ? result : result.signature;
+    },
+  };
+}
 
 function encodeBase58(bytes: Uint8Array) {
   let value = 0n;
@@ -117,6 +141,20 @@ function standardWalletProvider(wallet: StandardSolanaWallet): SolanaWalletProvi
       if (!result) throw new Error(`${wallet.name} did not return a transaction signature.`);
       return { signature: encodeBase58(result.signature) };
     },
+    async signMessage(message) {
+      const feature = wallet.features[SolanaSignMessage];
+      if (!feature) throw new Error(`${wallet.name} does not support signing messages.`);
+      if (!account) await this.connect();
+      if (!account) throw new Error(`Connect ${wallet.name} before signing a message.`);
+      const [result] = await feature.signMessage({ account, message });
+      if (!result) throw new Error(`${wallet.name} did not return a message signature.`);
+      if (
+        result.signedMessage.length !== message.length ||
+        result.signedMessage.some((byte, index) => byte !== message[index])
+      )
+        throw new Error(`${wallet.name} changed the message before signing it.`);
+      return result.signature;
+    },
   };
 }
 
@@ -130,8 +168,8 @@ function isSupportedStandardWallet(wallet: Wallet): wallet is StandardSolanaWall
 }
 
 function isSupportedInjectedProvider(
-  provider: SolanaWalletProvider | undefined,
-): provider is SolanaWalletProvider {
+  provider: InjectedSolanaWalletProvider | undefined,
+): provider is InjectedSolanaWalletProvider {
   return Boolean(provider && (provider.isBraveWallet || provider.isPhantom));
 }
 
@@ -159,8 +197,8 @@ function getProviderEntries(): ProviderEntry[] {
   }
 
   const walletWindow = window as Window & {
-    braveSolana?: SolanaWalletProvider;
-    solana?: SolanaWalletProvider;
+    braveSolana?: InjectedSolanaWalletProvider;
+    solana?: InjectedSolanaWalletProvider;
   };
   const injectedProviders = [walletWindow.solana, walletWindow.braveSolana];
   for (const provider of injectedProviders) {
@@ -168,7 +206,11 @@ function getProviderEntries(): ProviderEntry[] {
     const name = provider.isBraveWallet ? "Brave Wallet" : "Phantom";
     if (names.has(name.toLowerCase())) continue;
     names.add(name.toLowerCase());
-    entries.push({ id: `injected:${name.toLowerCase().replaceAll(" ", "-")}`, name, provider });
+    entries.push({
+      id: `injected:${name.toLowerCase().replaceAll(" ", "-")}`,
+      name,
+      provider: injectedWalletProvider(provider),
+    });
   }
 
   return entries;

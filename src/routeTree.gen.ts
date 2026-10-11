@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as MissionsRouteImport } from './routes/missions'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AdminReviewersRouteImport } from './routes/admin.reviewers'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminReviewersRoute = AdminReviewersRouteImport.update({
+  id: '/admin/reviewers',
+  path: '/admin/reviewers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/missions': typeof MissionsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/admin/reviewers': typeof AdminReviewersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/missions': typeof MissionsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/admin/reviewers': typeof AdminReviewersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,12 +79,27 @@ export interface FileRoutesById {
   '/missions': typeof MissionsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
+  '/admin/reviewers': typeof AdminReviewersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/auth' | '/missions' | '/reports' | '/settings'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/missions'
+    | '/reports'
+    | '/settings'
+    | '/admin/reviewers'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/auth' | '/missions' | '/reports' | '/settings'
+  to:
+    | '/'
+    | '/about'
+    | '/auth'
+    | '/missions'
+    | '/reports'
+    | '/settings'
+    | '/admin/reviewers'
   id:
     | '__root__'
     | '/'
@@ -85,6 +108,7 @@ export interface FileRouteTypes {
     | '/missions'
     | '/reports'
     | '/settings'
+    | '/admin/reviewers'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -94,6 +118,7 @@ export interface RootRouteChildren {
   MissionsRoute: typeof MissionsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
+  AdminReviewersRoute: typeof AdminReviewersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -140,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/reviewers': {
+      id: '/admin/reviewers'
+      path: '/admin/reviewers'
+      fullPath: '/admin/reviewers'
+      preLoaderRoute: typeof AdminReviewersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -150,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   MissionsRoute: MissionsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
+  AdminReviewersRoute: AdminReviewersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
