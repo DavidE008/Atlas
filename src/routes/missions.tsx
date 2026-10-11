@@ -1164,6 +1164,34 @@ function MissionsPage() {
                 </p>
               </div>
 
+              {selected.submission && (
+                <section
+                  className="mt-5 rounded-xl border border-border bg-background p-4"
+                  aria-label="Participant submission"
+                >
+                  <h3 className="font-semibold">Participant submission</h3>
+                  <p className="mt-3 text-xs font-medium text-muted-foreground">Evidence note</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
+                    {selected.submission.note || "No evidence note was provided."}
+                  </p>
+                  {selected.submission.photo_path ? (
+                    <button
+                      type="button"
+                      onClick={() => void openEvidencePhoto()}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-primary hover:bg-secondary"
+                    >
+                      <ExternalLink className="h-4 w-4" /> View submitted photo · full size
+                    </button>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">No photo attached.</p>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Compare this submission with the mission requirements above before making a
+                    decision.
+                  </p>
+                </section>
+              )}
+
               <div className="mt-5 space-y-2">
                 {!selected.mission_address && selected.created_by === userId && (
                   <p className="rounded-lg bg-amber-400/10 p-3 text-xs text-amber-800">
@@ -1320,14 +1348,6 @@ function MissionsPage() {
                       Refund expired mission
                     </ActionButton>
                   )}
-                {selected.submission?.photo_path && (
-                  <button
-                    onClick={() => void openEvidencePhoto()}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-primary"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" /> Open evidence photo
-                  </button>
-                )}
                 {selected.submission && (
                   <a
                     className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-primary"
@@ -1335,7 +1355,7 @@ function MissionsPage() {
                     rel="noreferrer"
                     href={`https://explorer.solana.com/tx/${selected.submission.tx_signature}?cluster=devnet`}
                   >
-                    <ExternalLink className="h-3.5 w-3.5" /> View submitted proof
+                    <ExternalLink className="h-3.5 w-3.5" /> View submission transaction
                   </a>
                 )}
                 {selected.settlement_tx_signature && (
