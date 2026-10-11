@@ -74,10 +74,14 @@ function AuthPage() {
         await navigate({ to: "/missions" });
       }
     } catch (issue) {
-      setError(
+      const message =
         issue instanceof Error
           ? issue.message
-          : "We couldn't complete that request. Please try again.",
+          : "We couldn't complete that request. Please try again.";
+      setError(
+        signup && /rate.?limit|email.*limit|too many requests/i.test(message)
+          ? "Atlas has reached Supabase’s email sending limit, so the confirmation message could not be sent. Wait before trying again, or ask the project owner to configure custom SMTP in Supabase Auth. Repeated attempts won’t make the email arrive sooner."
+          : message,
       );
     } finally {
       setBusy(false);

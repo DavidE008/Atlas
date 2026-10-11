@@ -61,6 +61,9 @@ export function AtlasHeader() {
         <div className="nav-account">
           {signedIn ? (
             <>
+              <Link to="/settings" onClick={() => setOpen(false)}>
+                Settings
+              </Link>
               <button type="button" onClick={() => void signOut()}>
                 Sign out
               </button>

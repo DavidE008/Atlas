@@ -184,6 +184,24 @@ export type Database = {
         }
         Relationships: []
       }
+      account_settings: {
+        Row: {
+          updated_at: string
+          user_id: string
+          wallet_address: string | null
+        }
+        Insert: {
+          updated_at?: string
+          user_id: string
+          wallet_address?: string | null
+        }
+        Update: {
+          updated_at?: string
+          user_id?: string
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
       report_verifications: {
         Row: {
           created_at: string
