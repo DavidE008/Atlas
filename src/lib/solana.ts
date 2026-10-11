@@ -3,7 +3,11 @@
 
 import { Buffer } from "buffer/";
 import solanaScriptUrl from "@solana/web3.js/lib/index.iife.min.js?url";
-import { getSolanaWalletProvider, missingSolanaWalletMessage } from "./solana-wallet-provider";
+import {
+  getSolanaWalletProvider,
+  missingSolanaWalletMessage,
+  selectSolanaWalletProvider,
+} from "./solana-wallet-provider";
 
 const DEVNET_RPC = "https://api.devnet.solana.com";
 let sdkPromise: Promise<typeof import("@solana/web3.js")> | undefined;
@@ -15,7 +19,8 @@ function loadSolanaSdk() {
     script.src = solanaScriptUrl;
     script.async = true;
     script.onload = () => {
-      const sdk = (window as unknown as { solanaWeb3?: typeof import("@solana/web3.js") }).solanaWeb3;
+      const sdk = (window as unknown as { solanaWeb3?: typeof import("@solana/web3.js") })
+        .solanaWeb3;
       if (sdk) resolve(sdk);
       else reject(new Error("Solana wallet tools could not initialize."));
     };
@@ -33,7 +38,10 @@ export function isSolanaWalletAvailable(): boolean {
   return getWallet() != null;
 }
 
-export async function connectWallet(): Promise<string> {
+export async function connectWallet(providerId?: string): Promise<string> {
+  if (providerId && !selectSolanaWalletProvider(providerId)) {
+    throw new Error("That wallet is no longer available. Choose a detected wallet and try again.");
+  }
   const wallet = getWallet();
   if (!wallet) throw new Error(missingSolanaWalletMessage());
   const { publicKey } = await wallet.connect();
@@ -45,11 +53,11 @@ export async function attestReport(params: {
   category: string;
   neighborhood: string | null;
 }): Promise<{ signature: string; wallet: string }> {
+  const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
   const wallet = getWallet();
   if (!wallet) throw new Error(missingSolanaWalletMessage());
   const { publicKey } = await wallet.connect();
 
-  const { Connection, PublicKey, Transaction, TransactionInstruction } = await loadSolanaSdk();
   const memoProgramId = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
   const memo = JSON.stringify({
     app: "atlas",
@@ -60,8 +68,7 @@ export async function attestReport(params: {
   });
 
   const connection = new Connection(DEVNET_RPC, "confirmed");
-  const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash();
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
   const tx = new Transaction({
     feePayer: publicKey,
@@ -76,10 +83,7 @@ export async function attestReport(params: {
   );
 
   const { signature } = await wallet.signAndSendTransaction(tx);
-  await connection.confirmTransaction(
-    { signature, blockhash, lastValidBlockHeight },
-    "confirmed",
-  );
+  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
 
   return { signature, wallet: publicKey.toBase58() };
 }

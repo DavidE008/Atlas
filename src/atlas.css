@@ -692,6 +692,22 @@ em {
   color: #294631;
   font-weight: 600;
 }
+.settings-wallet-provider {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  color: #72786f;
+  font-size: 12px;
+}
+.settings-wallet-provider select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #cfd8ca;
+  border-radius: 8px;
+  background: #fffefa;
+  color: #173d2f;
+  font: inherit;
+}
 .wallet-connected {
   display: flex;
   align-items: flex-start;

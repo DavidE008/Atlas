@@ -4,6 +4,13 @@ import { Check, KeyRound, Loader2, Mail, Save, UserRound, Wallet } from "lucide-
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { connectWallet } from "@/lib/solana";
+import {
+  getSelectedSolanaWalletProviderId,
+  listSolanaWalletProviders,
+  selectSolanaWalletProvider,
+  subscribeToSolanaWalletProviders,
+  type SolanaWalletChoice,
+} from "@/lib/solana-wallet-provider";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -22,6 +29,8 @@ function SettingsPage() {
   const [email, setEmail] = useState("");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [connectedWallet, setConnectedWallet] = useState("");
+  const [walletProviders, setWalletProviders] = useState<SolanaWalletChoice[]>([]);
+  const [selectedWalletProvider, setSelectedWalletProvider] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,6 +69,21 @@ function SettingsPage() {
       live = false;
     };
   }, [navigate]);
+
+  useEffect(() => {
+    const refreshProviders = () => {
+      const providers = listSolanaWalletProviders();
+      setWalletProviders(providers);
+      const storedProvider = getSelectedSolanaWalletProviderId();
+      setSelectedWalletProvider(
+        providers.some(({ id }) => id === storedProvider)
+          ? storedProvider!
+          : (providers[0]?.id ?? ""),
+      );
+    };
+    refreshProviders();
+    return subscribeToSolanaWalletProviders(refreshProviders);
+  }, []);
 
   function clearFeedback() {
     setError("");
@@ -119,7 +143,7 @@ function SettingsPage() {
     clearFeedback();
     setBusy("connect");
     try {
-      setConnectedWallet(await connectWallet());
+      setConnectedWallet(await connectWallet(selectedWalletProvider || undefined));
       setNotice("Wallet connected. Save it below to use it for future Atlas missions.");
     } catch (issue) {
       setError(issue instanceof Error ? issue.message : "We couldn't connect that wallet.");
@@ -334,6 +358,28 @@ function SettingsPage() {
               <span>{connectedWallet}</span>
             </div>
           )}
+          {walletProviders.length > 1 ? (
+            <label className="settings-wallet-provider">
+              <span>Choose a wallet provider</span>
+              <select
+                value={selectedWalletProvider}
+                onChange={(event) => {
+                  const providerId = event.currentTarget.value;
+                  if (selectSolanaWalletProvider(providerId)) setSelectedWalletProvider(providerId);
+                }}
+              >
+                {walletProviders.map((provider) => (
+                  <option value={provider.id} key={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : walletProviders[0] ? (
+            <p className="settings-note">Detected wallet: {walletProviders[0].name}</p>
+          ) : (
+            <p className="settings-note">No wallet provider detected in this browser.</p>
+          )}
           <div className="wallet-actions">
             <button
               className="button-secondary"
@@ -366,8 +412,8 @@ function SettingsPage() {
             )}
           </div>
           <p className="settings-note">
-            To switch to another account, select it in Brave Wallet, connect it here, then save.
-            Past missions keep their original on-chain wallet.
+            Choose a provider above when you have multiple wallets installed. The selected wallet
+            will sign future mission actions. Past missions keep their original on-chain wallet.
           </p>
         </section>
       </div>
