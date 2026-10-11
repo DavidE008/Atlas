@@ -43,10 +43,18 @@ function loadSdk() {
 }
 
 const IX = {
+  initializeConfig: new Uint8Array([208, 127, 21, 1, 194, 190, 196, 70]),
+  renewAssignmentAuthority: new Uint8Array([10, 249, 158, 131, 157, 44, 129, 42]),
   create: new Uint8Array([15, 28, 105, 135, 65, 62, 188, 255]),
   claim: new Uint8Array([62, 198, 214, 193, 213, 159, 108, 210]),
   submit: new Uint8Array([12, 169, 228, 194, 229, 31, 44, 39]),
-  resolve: new Uint8Array([246, 150, 236, 206, 108, 63, 58, 10]),
+  assign: new Uint8Array([50, 160, 115, 122, 102, 108, 179, 201]),
+  accept: new Uint8Array([162, 209, 28, 223, 46, 96, 89, 222]),
+  decide: new Uint8Array([123, 125, 184, 125, 249, 43, 113, 15]),
+  appeal: new Uint8Array([250, 91, 1, 244, 179, 52, 75, 236]),
+  escalate: new Uint8Array([123, 99, 100, 10, 66, 238, 154, 23]),
+  fallback: new Uint8Array([239, 183, 18, 95, 119, 38, 158, 5]),
+  finalizeRejection: new Uint8Array([33, 120, 25, 204, 249, 2, 34, 239]),
   refund: new Uint8Array([118, 153, 164, 244, 40, 128, 242, 250]),
 };
 
@@ -138,16 +146,13 @@ async function missionAddress(
 
 export async function createFundedMission(input: {
   missionId: string;
-  reviewerWallet: string;
   rewardSol: string;
   submitBy: number;
-  reviewBy: number;
   terms: string;
 }) {
   const { PublicKey, SystemProgram } = await loadSdk();
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
-  const reviewer = new PublicKey(input.reviewerWallet);
   const mission = { hex: input.missionId.toLowerCase(), bytes: hexBytes(input.missionId) };
   const reward = solToLamports(input.rewardSol);
   const termsHash = await sha256(input.terms);
@@ -158,11 +163,9 @@ export async function createFundedMission(input: {
     termsHash,
     intBytes(reward, 8),
     intBytes(BigInt(input.submitBy), 8, true),
-    intBytes(BigInt(input.reviewBy), 8, true),
   );
   const result = await sendInstruction(data, [
     { pubkey: publicKey, isSigner: true, isWritable: true },
-    { pubkey: reviewer, isSigner: false, isWritable: false },
     { pubkey: pda, isSigner: false, isWritable: true },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ]);
@@ -173,6 +176,96 @@ export async function createFundedMission(input: {
     termsHash: Buffer.from(termsHash).toString("hex"),
     rewardLamports: reward.toString(),
   };
+}
+
+export async function initializeMissionConfig(input: {
+  assignmentAuthority: string;
+  fallbackAuthority: string;
+  assignmentExpiresAt: number;
+}) {
+  const { PublicKey, SystemProgram } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const [programData] = PublicKey.findProgramAddressSync(
+    [programId.toBuffer()],
+    new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"),
+  );
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const result = await sendInstruction(
+    concat(
+      IX.initializeConfig,
+      new PublicKey(input.assignmentAuthority).toBytes(),
+      new PublicKey(input.fallbackAuthority).toBytes(),
+      intBytes(BigInt(input.assignmentExpiresAt), 8, true),
+    ),
+    [
+      { pubkey: publicKey, isSigner: true, isWritable: true },
+      { pubkey: programData, isSigner: false, isWritable: false },
+      { pubkey: config, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+  );
+  return { ...result, configAddress: config.toBase58() };
+}
+
+export async function readMissionConfig() {
+  const { Connection, PublicKey } = await loadSdk();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const loaderId = new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111");
+  const [programData] = PublicKey.findProgramAddressSync([programId.toBuffer()], loaderId);
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const [programDataInfo, configInfo] = await Promise.all([
+    connection.getAccountInfo(programData, "confirmed"),
+    connection.getAccountInfo(config, "confirmed"),
+  ]);
+  const upgradeAuthority =
+    programDataInfo?.data.length &&
+    programDataInfo.data.length >= 45 &&
+    programDataInfo.data[12] === 1
+      ? new PublicKey(programDataInfo.data.subarray(13, 45)).toBase58()
+      : null;
+  if (!configInfo) return { configured: false, configAddress: config.toBase58(), upgradeAuthority };
+  if (configInfo.data.length < 113)
+    throw new Error("Atlas reviewer configuration has an invalid size.");
+  return {
+    configured: true,
+    configAddress: config.toBase58(),
+    upgradeAuthority,
+    assignmentAuthority: new PublicKey(configInfo.data.subarray(40, 72)).toBase58(),
+    fallbackAuthority: new PublicKey(configInfo.data.subarray(72, 104)).toBase58(),
+    assignmentExpiresAt: Number(
+      new DataView(
+        configInfo.data.buffer,
+        configInfo.data.byteOffset,
+        configInfo.data.byteLength,
+      ).getBigInt64(104, true),
+    ),
+  };
+}
+
+export async function renewMissionAssignmentAuthority(input: {
+  assignmentAuthority: string;
+  assignmentExpiresAt: number;
+}) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const result = await sendInstruction(
+    concat(
+      IX.renewAssignmentAuthority,
+      new PublicKey(input.assignmentAuthority).toBytes(),
+      intBytes(BigInt(input.assignmentExpiresAt), 8, true),
+    ),
+    [
+      { pubkey: publicKey, isSigner: true, isWritable: false },
+      { pubkey: config, isSigner: false, isWritable: true },
+    ],
+  );
+  return { ...result, configAddress: config.toBase58() };
 }
 
 export async function claimMission(input: { sponsorWallet: string; missionId: string }) {
@@ -213,10 +306,99 @@ export async function resolveMission(input: {
   const provider = await getWallet();
   const { publicKey } = await provider.connect();
   const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
-  return sendInstruction(concat(IX.resolve, new Uint8Array([input.approve ? 1 : 0])), [
+  return sendInstruction(concat(IX.decide, new Uint8Array([input.approve ? 1 : 0])), [
     { pubkey: pda, isSigner: false, isWritable: true },
     { pubkey: publicKey, isSigner: true, isWritable: false },
     { pubkey: new PublicKey(input.participantWallet), isSigner: false, isWritable: true },
+    { pubkey: new PublicKey(input.sponsorWallet), isSigner: false, isWritable: true },
+  ]);
+}
+
+export async function assignMissionReviewer(input: {
+  sponsorWallet: string;
+  missionId: string;
+  reviewerWallet: string;
+}) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(concat(IX.assign, new PublicKey(input.reviewerWallet).toBytes()), [
+    { pubkey: config, isSigner: false, isWritable: false },
+    { pubkey: publicKey, isSigner: true, isWritable: false },
+    { pubkey: pda, isSigner: false, isWritable: true },
+  ]);
+}
+
+export async function acceptMissionReview(input: { sponsorWallet: string; missionId: string }) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(IX.accept, [
+    { pubkey: pda, isSigner: false, isWritable: true },
+    { pubkey: publicKey, isSigner: true, isWritable: false },
+  ]);
+}
+
+export async function appealMission(input: { sponsorWallet: string; missionId: string }) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(IX.appeal, [
+    { pubkey: pda, isSigner: false, isWritable: true },
+    { pubkey: publicKey, isSigner: true, isWritable: false },
+  ]);
+}
+
+export async function escalateMission(input: { sponsorWallet: string; missionId: string }) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(IX.escalate, [
+    { pubkey: config, isSigner: false, isWritable: false },
+    { pubkey: publicKey, isSigner: true, isWritable: false },
+    { pubkey: pda, isSigner: false, isWritable: true },
+  ]);
+}
+
+export async function resolveEscalatedMission(input: {
+  sponsorWallet: string;
+  missionId: string;
+  participantWallet: string;
+  approve: boolean;
+}) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const programId = new PublicKey(ATLAS_PROGRAM_ID);
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from("config")], programId);
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(concat(IX.fallback, new Uint8Array([input.approve ? 1 : 0])), [
+    { pubkey: config, isSigner: false, isWritable: false },
+    { pubkey: pda, isSigner: false, isWritable: true },
+    { pubkey: publicKey, isSigner: true, isWritable: false },
+    { pubkey: new PublicKey(input.participantWallet), isSigner: false, isWritable: true },
+    { pubkey: new PublicKey(input.sponsorWallet), isSigner: false, isWritable: true },
+  ]);
+}
+
+export async function finalizeMissionRejection(input: {
+  sponsorWallet: string;
+  missionId: string;
+}) {
+  const { PublicKey } = await loadSdk();
+  const provider = await getWallet();
+  const { publicKey } = await provider.connect();
+  const { pda } = await missionAddress(PublicKey, input.sponsorWallet, input.missionId);
+  return sendInstruction(IX.finalizeRejection, [
+    { pubkey: pda, isSigner: false, isWritable: true },
     { pubkey: new PublicKey(input.sponsorWallet), isSigner: false, isWritable: true },
   ]);
 }
@@ -237,8 +419,21 @@ export async function readMissionStatus(address: string) {
   const connection = new Connection(DEVNET_RPC, "confirmed");
   const account = await connection.getAccountInfo(new PublicKey(address), "confirmed");
   if (!account) return null;
-  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 220)
+  if (account.owner.toBase58() !== ATLAS_PROGRAM_ID || account.data.length < 264)
     throw new Error("Mission account is not owned by the Atlas program.");
-  const status = account.data[218]!;
-  return (["Funded", "Claimed", "Submitted", "Paid", "Rejected"] as const)[status] ?? null;
+  const status = account.data[260]!;
+  return (
+    (
+      [
+        "Funded",
+        "Claimed",
+        "Submitted",
+        "Appealed",
+        "RejectedPendingAppeal",
+        "Escalated",
+        "Paid",
+        "RejectedFinal",
+      ] as const
+    )[status] ?? null
+  );
 }

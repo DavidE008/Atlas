@@ -13,10 +13,11 @@ export const MISSION_LOCATIONS = [
 
 export const SUBMISSION_WINDOW_HOURS = 72;
 export const REVIEW_WINDOW_HOURS = 24;
+export const MAX_REVIEW_WINDOW_HOURS = 96;
 
 export function getMissionDeadlines(now = new Date()) {
   const submitBy = new Date(now.getTime() + SUBMISSION_WINDOW_HOURS * 60 * 60 * 1000);
-  const reviewBy = new Date(submitBy.getTime() + REVIEW_WINDOW_HOURS * 60 * 60 * 1000);
+  const reviewBy = new Date(submitBy.getTime() + MAX_REVIEW_WINDOW_HOURS * 60 * 60 * 1000);
   return { submitBy, reviewBy };
 }
 
@@ -27,8 +28,9 @@ export function getMissionDisplayStatus(
   now = Date.now(),
 ) {
   const submitWindow = status === "Funded" || status === "Claimed";
-  const reviewWindow = status === "Submitted";
-  const deadline = reviewWindow ? reviewBy : submitBy;
-  if ((submitWindow || reviewWindow) && now > Date.parse(deadline)) return "Expired";
+  if (submitWindow && now > Date.parse(submitBy)) return "Expired";
+  // Reviews can move through a backup, appeal, or operator escalation. The
+  // deadline is advanced by the chain one 24-hour slot at a time.
+  void reviewBy;
   return status ?? "Unavailable";
 }

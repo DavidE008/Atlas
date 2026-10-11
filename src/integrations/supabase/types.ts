@@ -103,10 +103,11 @@ export type Database = {
           neighborhood: string
           program_address: string
           review_by: string
-          reviewer_wallet: string
           reward_lamports: number
           settlement_status: string | null
           settlement_tx_signature: string | null
+          appealed_at: string | null
+          appeal_tx_signature: string | null
           sponsor_wallet: string
           submit_by: string
           terms_hash: string | null
@@ -128,10 +129,11 @@ export type Database = {
           neighborhood: string
           program_address: string
           review_by: string
-          reviewer_wallet: string
           reward_lamports: number
           settlement_status?: string | null
           settlement_tx_signature?: string | null
+          appealed_at?: string | null
+          appeal_tx_signature?: string | null
           sponsor_wallet: string
           submit_by: string
           terms_hash?: string | null
@@ -153,10 +155,11 @@ export type Database = {
           neighborhood?: string
           program_address?: string
           review_by?: string
-          reviewer_wallet?: string
           reward_lamports?: number
           settlement_status?: string | null
           settlement_tx_signature?: string | null
+          appealed_at?: string | null
+          appeal_tx_signature?: string | null
           sponsor_wallet?: string
           submit_by?: string
           terms_hash?: string | null

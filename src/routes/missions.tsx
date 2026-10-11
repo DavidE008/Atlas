@@ -26,11 +26,17 @@ import {
 } from "@/lib/mission-demo";
 import {
   ATLAS_PROGRAM_ID,
+  acceptMissionReview,
+  appealMission,
   claimMission,
   createFundedMission,
   isAtlasProgramDeployed,
   readMissionStatus,
+  readMissionConfig,
   refundMission,
+  initializeMissionConfig,
+  renewMissionAssignmentAuthority,
+  resolveEscalatedMission,
   resolveMission,
   submitMissionEvidence,
 } from "@/lib/atlas-missions";
@@ -44,13 +50,21 @@ import {
   normalizeMissionCategory,
   type MissionCategory,
 } from "@/lib/mission-categories";
+import {
+  advanceMissionReview,
+  enrollAsReviewer,
+  listMyReviewAssignments,
+  markMissionReviewAccepted,
+  recordFallbackDecision,
+  recordMissionAppeal,
+  recordMissionDecision,
+} from "@/lib/mission-review.functions";
 
 type Mission = {
   id: string;
   created_by: string;
   mission_key: string;
   sponsor_wallet: string;
-  reviewer_wallet: string;
   program_address: string;
   mission_address: string | null;
   terms_hash: string | null;
@@ -70,7 +84,15 @@ type Mission = {
   settlement_status: string | null;
   settlement_tx_signature: string | null;
   chainStatus?: string | null;
+  reviewAssignment?: {
+    reviewer_wallet: string;
+    review_round: number;
+    status: string;
+    deadline: string;
+    tx_signature: string | null;
+  } | null;
   submission?: {
+    user_id: string;
     participant_wallet: string;
     note: string;
     evidence_hash: string;
@@ -78,6 +100,7 @@ type Mission = {
     tx_signature: string;
   } | null;
 };
+type AtlasReviewConfig = Awaited<ReturnType<typeof readMissionConfig>>;
 const CATEGORY_FILTERS = [
   { key: "all", label: "All missions" },
   { key: "environment", label: "Environment" },
@@ -108,6 +131,13 @@ function MissionsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [category, setCategory] = useState<(typeof CATEGORY_FILTERS)[number]["key"]>("all");
   const [showCreate, setShowCreate] = useState(false);
+  const [showReviewerJoin, setShowReviewerJoin] = useState(false);
+  const [reviewerAlias, setReviewerAlias] = useState("");
+  const [reviewerConflictAttested, setReviewerConflictAttested] = useState(false);
+  const [reviewerEnrollmentStatus, setReviewerEnrollmentStatus] = useState<string | null>(null);
+  const [reviewConfig, setReviewConfig] = useState<AtlasReviewConfig | null>(null);
+  const [assignmentAuthorityInput, setAssignmentAuthorityInput] = useState("");
+  const [fallbackAuthorityInput, setFallbackAuthorityInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [programStatus, setProgramStatus] = useState("Checking");
   const [note, setNote] = useState("");
@@ -120,6 +150,16 @@ function MissionsPage() {
     try {
       const { data: auth } = await supabase.auth.getUser();
       setUserId(auth.user?.id ?? null);
+      try {
+        const config = await readMissionConfig();
+        setReviewConfig(config);
+        if (config.configured) {
+          setAssignmentAuthorityInput(config.assignmentAuthority ?? "");
+          setFallbackAuthorityInput(config.fallbackAuthority ?? "");
+        }
+      } catch {
+        setReviewConfig(null);
+      }
       const { data, error } = await supabase
         .from("missions")
         .select("*")
@@ -127,6 +167,10 @@ function MissionsPage() {
         .limit(60);
       if (error) throw error;
       const rows = (data ?? []) as Mission[];
+      const reviewerAssignments = auth.user ? await listMyReviewAssignments() : [];
+      const assignmentsByMission = new Map(
+        reviewerAssignments.map((assignment) => [assignment.mission_id, assignment]),
+      );
       const withStatus = await Promise.all(
         rows
           .filter((m) => m.mission_address)
@@ -140,13 +184,18 @@ function MissionsPage() {
           }),
       );
       const byId = new Map(withStatus.map((m) => [m.id, m]));
-      const complete = rows.map((m) => byId.get(m.id) ?? m);
+      const complete = rows.map((m) => ({
+        ...(byId.get(m.id) ?? m),
+        reviewAssignment: assignmentsByMission.get(m.id) ?? null,
+      }));
       const missionIds = complete.map((m) => m.id);
       const { data: submissionRows, error: submissionError } =
         missionIds.length && auth.user
           ? await supabase
               .from("mission_submissions")
-              .select("mission_id,participant_wallet,note,evidence_hash,photo_path,tx_signature")
+              .select(
+                "mission_id,user_id,participant_wallet,note,evidence_hash,photo_path,tx_signature",
+              )
               .in("mission_id", missionIds)
           : { data: [], error: null };
       if (submissionError) throw submissionError;
@@ -312,9 +361,23 @@ function MissionsPage() {
           "The on-chain submission succeeded, but its off-chain receipt could not be saved. Share transaction " +
             result.signature,
         );
+      let assignmentMessage = "Atlas will assign an independent reviewer.";
+      try {
+        const assignment = await advanceMissionReview({ data: { missionId: selected.id } });
+        if (assignment.status === "assigned")
+          assignmentMessage = "An independent reviewer has been assigned.";
+        else if (assignment.status === "waiting_for_review_pool")
+          assignmentMessage =
+            "Evidence is secured. Atlas will route it to the volunteer review pool.";
+      } catch {
+        assignmentMessage =
+          "Evidence is secured. Atlas will assign a reviewer when the review service is available.";
+      }
       setNote("");
       setPhoto(null);
-      toast.success("Evidence submitted and hash committed on Solana");
+      toast.success("Evidence submitted and hash committed on Solana", {
+        description: assignmentMessage,
+      });
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Submission failed");
@@ -347,18 +410,169 @@ function MissionsPage() {
         participantWallet: selected.submission.participant_wallet,
         approve,
       });
-      const { error } = await supabase
-        .from("missions")
-        .update({
-          settlement_status: approve ? "Paid" : "Rejected",
-          settlement_tx_signature: result.signature,
-        })
-        .eq("id", selected.id);
-      if (error) toast.error("On-chain review succeeded, but its receipt could not be saved.");
-      else toast.success(approve ? "Reward paid on Solana" : "Reward returned to sponsor");
+      await recordMissionDecision({
+        data: { missionId: selected.id, approve, txSignature: result.signature },
+      });
+      toast.success(
+        approve
+          ? "Reward paid on Solana"
+          : "Decision recorded. The participant has 24 hours to appeal.",
+      );
       await refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Review failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doAcceptReview = async () => {
+    if (!selected) return;
+    if (!(await requireWalletAccount())) return;
+    setBusy(true);
+    try {
+      await acceptMissionReview({
+        sponsorWallet: selected.sponsor_wallet,
+        missionId: selected.mission_key,
+      });
+      await markMissionReviewAccepted({ data: { missionId: selected.id } });
+      toast.success("You accepted this anonymous Atlas review assignment.");
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not accept review assignment");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doAppeal = async () => {
+    if (!selected) return;
+    if (!(await requireWalletAccount())) return;
+    setBusy(true);
+    try {
+      const result = await appealMission({
+        sponsorWallet: selected.sponsor_wallet,
+        missionId: selected.mission_key,
+      });
+      await recordMissionAppeal({
+        data: { missionId: selected.id, txSignature: result.signature },
+      });
+      toast.success("Appeal submitted. A different reviewer will make the final decision.");
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not submit appeal");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doFallbackResolve = async (approve: boolean) => {
+    if (!selected?.submission) return;
+    if (!(await requireWalletAccount())) return;
+    setBusy(true);
+    try {
+      const result = await resolveEscalatedMission({
+        sponsorWallet: selected.sponsor_wallet,
+        missionId: selected.mission_key,
+        participantWallet: selected.submission.participant_wallet,
+        approve,
+      });
+      await recordFallbackDecision({
+        data: { missionId: selected.id, approve, txSignature: result.signature },
+      });
+      toast.success(
+        approve
+          ? "Atlas fallback review paid the reward."
+          : "Atlas fallback review returned the escrow.",
+      );
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fallback decision failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doAdvanceReview = async () => {
+    if (!selected) return;
+    setBusy(true);
+    try {
+      const result = await advanceMissionReview({ data: { missionId: selected.id } });
+      toast.info(
+        result.status === "escalated"
+          ? "This case has been escalated to Atlas fallback review."
+          : result.status === "assigned"
+            ? "An independent reviewer is assigned."
+            : result.status === "waiting_for_review_pool"
+              ? "Waiting for the approved reviewer pool."
+              : "Review status checked.",
+      );
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update review assignment");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doJoinReviewerPool = async () => {
+    if (!(await requireWalletAccount())) return;
+    if (!reviewerConflictAttested) {
+      toast.error("Confirm the conflict attestation first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const reviewerWallet = await connectWallet();
+      if (!reviewerWallet) return;
+      const result = await enrollAsReviewer({
+        data: {
+          walletAddress: reviewerWallet,
+          pseudonym: reviewerAlias.trim() || "Atlas volunteer",
+          conflictAttested: true,
+        },
+      });
+      setReviewerEnrollmentStatus(result.status);
+      setShowReviewerJoin(false);
+      toast.success(
+        "Reviewer request sent. Atlas will review your wallet and conflict attestation.",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not join reviewer pool");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doConfigureReviewKeys = async () => {
+    if (!(await requireWalletAccount())) return;
+    if (!assignmentAuthorityInput.trim()) {
+      toast.error("Enter the restricted assignment wallet’s public address.");
+      return;
+    }
+    if (!reviewConfig?.configured && !fallbackAuthorityInput.trim()) {
+      toast.error("Enter a separate Atlas fallback wallet address.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const expiresAt = Math.floor(Date.now() / 1000) + 6 * 24 * 60 * 60;
+      if (reviewConfig?.configured) {
+        await renewMissionAssignmentAuthority({
+          assignmentAuthority: assignmentAuthorityInput.trim(),
+          assignmentExpiresAt: expiresAt,
+        });
+      } else {
+        await initializeMissionConfig({
+          assignmentAuthority: assignmentAuthorityInput.trim(),
+          fallbackAuthority: fallbackAuthorityInput.trim(),
+          assignmentExpiresAt: expiresAt,
+        });
+      }
+      setReviewConfig(await readMissionConfig());
+      toast.success("Atlas reviewer controls are configured on Devnet.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not configure reviewer controls");
     } finally {
       setBusy(false);
     }
@@ -432,8 +646,109 @@ function MissionsPage() {
           >
             <Plus className="h-4 w-4" /> Fund a mission
           </button>
+          {userId && (
+            <button
+              onClick={() => setShowReviewerJoin((value) => !value)}
+              className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium hover:border-primary/50"
+            >
+              {reviewerEnrollmentStatus === "pending"
+                ? "Reviewer request pending"
+                : "Volunteer to review"}
+            </button>
+          )}
         </div>
       </div>
+
+      {showReviewerJoin && userId && (
+        <div className="mb-5 max-w-2xl rounded-2xl border border-primary/20 bg-card p-5">
+          <h2 className="font-semibold">Join Atlas’s independent reviewer pool</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Atlas manually approves volunteers. Your identity and alias stay private; the assigned
+            wallet is public on Solana.
+          </p>
+          <label className="mt-3 block text-xs font-medium text-muted-foreground">
+            Private reviewer alias
+            <input
+              value={reviewerAlias}
+              onChange={(event) => setReviewerAlias(event.target.value)}
+              maxLength={40}
+              placeholder="Optional alias, visible only to you and Atlas"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={reviewerConflictAttested}
+              onChange={(event) => setReviewerConflictAttested(event.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              I will decline cases where I have a personal, financial, or organizational conflict
+              with the sponsor or participant.
+            </span>
+          </label>
+          <button
+            disabled={busy || !reviewerConflictAttested}
+            onClick={() => void doJoinReviewerPool()}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            Connect reviewer wallet and request approval
+          </button>
+        </div>
+      )}
+
+      {userId && wallet && reviewConfig?.upgradeAuthority === wallet && (
+        <div className="mb-5 max-w-2xl rounded-2xl border border-amber-500/25 bg-amber-50/60 p-5 dark:bg-amber-950/10">
+          <h2 className="font-semibold">Atlas review controls · program authority</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This setup is available only to the wallet that can upgrade the Atlas program. The
+            assignment key expires in seven days at most and cannot accept reviews, decide cases, or
+            move escrow.
+          </p>
+          <label className="mt-3 block text-xs font-medium text-muted-foreground">
+            Restricted assignment wallet · public address
+            <input
+              value={assignmentAuthorityInput}
+              onChange={(event) => setAssignmentAuthorityInput(event.target.value)}
+              placeholder="Public address for the server assignment key"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+            />
+          </label>
+          {!reviewConfig.configured && (
+            <label className="mt-3 block text-xs font-medium text-muted-foreground">
+              Separate Atlas fallback wallet · public address
+              <input
+                value={fallbackAuthorityInput}
+                onChange={(event) => setFallbackAuthorityInput(event.target.value)}
+                placeholder="Public address controlled by the Atlas operator"
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-foreground"
+              />
+            </label>
+          )}
+          {reviewConfig.configured && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Fallback wallet: <span className="font-mono">{reviewConfig.fallbackAuthority}</span> ·
+              assignment key expires{" "}
+              {new Date((reviewConfig.assignmentExpiresAt ?? 0) * 1000).toLocaleString()}.
+            </p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Keep the assignment wallet’s secret only in Vercel as{" "}
+            <code>ATLAS_ASSIGNMENT_KEYPAIR</code>. Never paste or commit it. Set the corresponding
+            64-byte JSON secret in Vercel before assignments can be signed.
+          </p>
+          <button
+            disabled={busy || !assignmentAuthorityInput.trim()}
+            onClick={() => void doConfigureReviewKeys()}
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {reviewConfig.configured
+              ? "Renew assignment key · 6 days"
+              : "Initialize reviewer controls"}
+          </button>
+        </div>
+      )}
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Metric
@@ -608,11 +923,18 @@ function MissionsPage() {
               </div>
               <div className="space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
                 <p>
-                  Reviewer{" "}
-                  <span className="float-right font-mono text-foreground">
-                    {selected.reviewer_wallet.slice(0, 5)}…{selected.reviewer_wallet.slice(-5)}
-                  </span>
+                  Review routing{" "}
+                  <span className="float-right text-foreground">Atlas independent volunteers</span>
                 </p>
+                {selected.reviewAssignment && (
+                  <p>
+                    Your reviewer assignment{" "}
+                    <span className="float-right text-foreground">
+                      Round {selected.reviewAssignment.review_round + 1} ·{" "}
+                      {selected.reviewAssignment.status}
+                    </span>
+                  </p>
+                )}
                 <p>
                   Solana mission PDA{" "}
                   <span className="float-right font-mono text-foreground">
@@ -641,7 +963,6 @@ function MissionsPage() {
                 )}
                 {status === "Claimed" &&
                   selected.sponsor_wallet !== wallet &&
-                  selected.reviewer_wallet !== wallet &&
                   !!userId &&
                   !selected.submission && (
                     <div className="space-y-2">
@@ -663,18 +984,65 @@ function MissionsPage() {
                       </ActionButton>
                     </div>
                   )}
-                {status === "Submitted" && selected.reviewer_wallet === wallet && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <ActionButton busy={busy} onClick={() => void doResolve(true)}>
-                      Approve & pay
+                {selected.reviewAssignment?.reviewer_wallet === wallet &&
+                  selected.reviewAssignment.status === "assigned" &&
+                  ["Submitted", "Appealed"].includes(status) && (
+                    <ActionButton busy={busy} onClick={() => void doAcceptReview()}>
+                      Accept independent review
                     </ActionButton>
-                    <button
-                      disabled={busy}
-                      onClick={() => void doResolve(false)}
-                      className="rounded-xl border border-border px-3 py-2 text-sm hover:bg-secondary disabled:opacity-50"
-                    >
-                      Reject & refund
-                    </button>
+                  )}
+                {selected.reviewAssignment?.reviewer_wallet === wallet &&
+                  selected.reviewAssignment.status === "accepted" &&
+                  ["Submitted", "Appealed"].includes(status) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <ActionButton busy={busy} onClick={() => void doResolve(true)}>
+                        Approve & pay
+                      </ActionButton>
+                      <button
+                        disabled={busy}
+                        onClick={() => void doResolve(false)}
+                        className="rounded-xl border border-border px-3 py-2 text-sm hover:bg-secondary disabled:opacity-50"
+                      >
+                        {status === "Appealed" ? "Reject as final" : "Reject · appeal available"}
+                      </button>
+                    </div>
+                  )}
+                {status === "Submitted" &&
+                  selected.submission &&
+                  (selected.submission.user_id === userId || selected.created_by === userId) && (
+                    <ActionButton busy={busy} onClick={() => void doAdvanceReview()}>
+                      Check reviewer assignment
+                    </ActionButton>
+                  )}
+                {status === "RejectedPendingAppeal" && selected.submission?.user_id === userId && (
+                  <div className="space-y-2">
+                    <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+                      The reward remains escrowed. You have 24 hours from the decision to appeal
+                      once.
+                    </p>
+                    <ActionButton busy={busy} onClick={() => void doAppeal()}>
+                      Appeal for a second reviewer
+                    </ActionButton>
+                  </div>
+                )}
+                {status === "Escalated" && (
+                  <div className="space-y-2">
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                      Atlas fallback review. Only the separately configured operator wallet can
+                      resolve this escalated case.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <ActionButton busy={busy} onClick={() => void doFallbackResolve(true)}>
+                        Fallback approve
+                      </ActionButton>
+                      <button
+                        disabled={busy}
+                        onClick={() => void doFallbackResolve(false)}
+                        className="rounded-xl border border-border px-3 py-2 text-sm hover:bg-secondary disabled:opacity-50"
+                      >
+                        Fallback reject
+                      </button>
+                    </div>
                   </div>
                 )}
                 {["Funded", "Claimed", "Submitted"].includes(selected.chainStatus ?? "") &&
@@ -840,7 +1208,6 @@ function CreateMission({
   const [locationPhotoName, setLocationPhotoName] = useState("");
   const [locationSearchBusy, setLocationSearchBusy] = useState(false);
   const [locationSourceNote, setLocationSourceNote] = useState("");
-  const [reviewer, setReviewer] = useState("");
   const [missionCategory, setMissionCategory] = useState<MissionCategory>("environment");
   const [customCategory, setCustomCategory] = useState("");
   const [customCategoryColor, setCustomCategoryColor] = useState<string>(
@@ -938,7 +1305,6 @@ function CreateMission({
           created_by: authenticatedUserId,
           mission_key: missionId,
           sponsor_wallet: walletAddress,
-          reviewer_wallet: reviewer,
           program_address: ATLAS_PROGRAM_ID,
           title,
           description,
@@ -959,10 +1325,8 @@ function CreateMission({
       if (error || !draft) throw error ?? new Error("Mission draft could not be saved");
       const result = await createFundedMission({
         missionId,
-        reviewerWallet: reviewer,
         rewardSol: reward,
         submitBy: Math.floor(submitBy.getTime() / 1000),
-        reviewBy: Math.floor(reviewBy.getTime() / 1000),
         terms,
       });
       const { error: publishError } = await supabase
@@ -1190,19 +1554,11 @@ function CreateMission({
               />
             </Field>
           </div>
-          <Field label="Independent reviewer wallet">
-            <input
-              required
-              minLength={32}
-              value={reviewer}
-              onChange={(e) => setReviewer(e.target.value.trim())}
-              placeholder="Base58 public key"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Funding opens a 72-hour submission window and a 24-hour review window after submissions
-            close. The reviewer must be different from the sponsor and participant.
+            Funding opens a 72-hour submission window. Atlas assigns an independent volunteer after
+            evidence is submitted. Each review stage receives 24 hours; a rejection can be appealed
+            once for a different final reviewer. Appeals and fallback review keep the reward
+            escrowed.
           </p>
           <label className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
             <input
