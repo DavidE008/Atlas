@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   ArrowUpRight,
+  CircleCheck,
   Compass,
   Crosshair,
   ExternalLink,
@@ -943,7 +944,7 @@ function MissionsPage() {
         <Metric
           label="Completed & paid"
           value={loading ? "…" : loadError ? "Unavailable" : String(paid)}
-          icon={<SolanaMark className="h-4 w-5" />}
+          icon={<CircleCheck className="h-4 w-4" />}
         />
         <Metric
           label="Program · Devnet"
@@ -1422,7 +1423,12 @@ function MissionsPage() {
 function Metric({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
-      <span className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</span>
+      <span
+        aria-hidden="true"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
+      >
+        {icon}
+      </span>
       <span>
         <span className="block text-xs text-muted-foreground">{label}</span>
         <strong className="text-sm">{value}</strong>
